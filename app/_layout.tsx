@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, useColorScheme } from 'react-native';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
-
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuthStore } from '../store/authStore';
 
 export default function RootLayout() {
