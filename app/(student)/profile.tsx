@@ -19,6 +19,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useThemeStore } from '../../store/themeStore'; // Added this import
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 
 export default function StudentProfileScreen() {
   const { user, logout } = useAuthStore();
@@ -209,6 +210,7 @@ export default function StudentProfileScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar hidden={isScannerVisible} />
       <ScrollView contentContainerStyle={styles.scrollContent}>
 
         {/* Profile Card */}
@@ -366,15 +368,15 @@ export default function StudentProfileScreen() {
           onPressOut={() => setSuccessModalVisible(false)}
         >
           <TouchableWithoutFeedback>
-            <View style={styles.modalContent}>
-            <MaterialIcons name="check-circle" size={60} color="#4CAF50" style={{ marginBottom: 15 }} />
-            <Text style={styles.modalTitle}>Success!</Text>
-            <Text style={styles.modalSubText}>{successMessage}</Text>
+            <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+            <MaterialIcons name="check-circle" size={60} color={colors.badgeGreen} style={{ marginBottom: 15 }} />
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Success!</Text>
+            <Text style={[styles.modalSubText, { color: colors.subtext }]}>{successMessage}</Text>
             <TouchableOpacity 
-              style={styles.closeButton} 
+              style={[styles.closeButton, { backgroundColor: colors.primary }]} 
               onPress={() => setSuccessModalVisible(false)}
             >
-              <Text style={styles.closeButtonText}>Done</Text>
+              <Text style={styles.closeButtonText}>OK</Text>
             </TouchableOpacity>
             </View>
           </TouchableWithoutFeedback>
