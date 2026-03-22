@@ -14,7 +14,6 @@ import {
 import { useAuthStore } from '../../store/authStore';
 import { MaterialIcons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import Svg, { Circle } from 'react-native-svg';
 
 export default function StudentProfileScreen() {
   const { user, logout } = useAuthStore();
@@ -72,13 +71,19 @@ export default function StudentProfileScreen() {
     return name ? name.split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase() : 'U';
   };
 
-  // SVG Circular Progress values
-  const size = 120;
-  const strokeWidth = 10;
-  const radius = (size - strokeWidth) / 2;
-  const circumference = radius * 2 * Math.PI;
-  const attendancePercentage = 85; // Mock data
-  const strokeDashoffset = circumference - (attendancePercentage / 100) * circumference;
+  const subjects = [
+    { id: '1', name: 'DS', percentage: 80 },
+    { id: '2', name: 'DBMS', percentage: 60 },
+    { id: '3', name: 'OOPS', percentage: 45 },
+    { id: '4', name: 'OS', percentage: 78 },
+    { id: '5', name: 'CN', percentage: 72 },
+  ];
+
+  const getBadgeColor = (percentage: number) => {
+    if (percentage >= 75) return { bg: '#E8F5E9', text: '#2E7D32' };
+    if (percentage >= 60) return { bg: '#FFF8E1', text: '#F57F17' };
+    return { bg: '#FFEBEE', text: '#C62828' };
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -96,40 +101,29 @@ export default function StudentProfileScreen() {
           </View>
         </View>
 
-        {/* Attendance Summary Card with Ring */}
-        <View style={styles.attendanceCard}>
-          <Text style={styles.attendanceTitle}>Overall Attendance</Text>
-          
-          <View style={styles.circularContainer}>
-            <Svg width={size} height={size}>
-              {/* Background Circle */}
-              <Circle
-                stroke="#E0E0E0"
-                fill="none"
-                cx={size / 2}
-                cy={size / 2}
-                r={radius}
-                strokeWidth={strokeWidth}
-              />
-              {/* Progress Circle */}
-              <Circle
-                stroke="#1F3864"
-                fill="none"
-                cx={size / 2}
-                cy={size / 2}
-                r={radius}
-                strokeWidth={strokeWidth}
-                strokeDasharray={circumference}
-                strokeDashoffset={strokeDashoffset}
-                strokeLinecap="round"
-                transform={`rotate(-90 ${size / 2} ${size / 2})`}
-              />
-            </Svg>
-            <View style={styles.percentageContainer}>
-              <Text style={styles.percentageText}>{attendancePercentage}%</Text>
-            </View>
-          </View>
-          <Text style={styles.attendanceSubtitle}>You're on track! Keep it up. 🚀</Text>
+        {/* Subjects List */}
+        <View style={styles.subjectsContainer}>
+          <Text style={styles.sectionTitle}>My Subjects</Text>
+          {subjects.map((subject) => {
+            const colors = getBadgeColor(subject.percentage);
+            return (
+              <TouchableOpacity 
+                key={subject.id} 
+                style={styles.subjectCard}
+                onPress={() => console.log(`Tapped ${subject.name}`)}
+              >
+                <View style={styles.subjectIcon}>
+                  <Text style={styles.subjectIconText}>{subject.name.substring(0, 1)}</Text>
+                </View>
+                <Text style={styles.subjectName}>{subject.name}</Text>
+                <View style={[styles.badge, { backgroundColor: colors.bg }]}>
+                  <Text style={[styles.badgeText, { color: colors.text }]}>
+                    {subject.percentage}%
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         {/* Actions Section */}
@@ -298,45 +292,58 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     letterSpacing: 1,
   },
-  attendanceCard: {
-    backgroundColor: '#FFF',
-    borderRadius: 16,
-    padding: 20,
+  subjectsContainer: {
     width: '100%',
-    alignItems: 'center',
     marginBottom: 25,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
   },
-  attendanceTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
     color: '#333',
     marginBottom: 15,
+    paddingHorizontal: 5,
   },
-  circularContainer: {
+  subjectCard: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginVertical: 10,
+    backgroundColor: '#FFF',
+    padding: 15,
+    borderRadius: 12,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
   },
-  percentageContainer: {
-    position: 'absolute',
+  subjectIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: '#E8EDF5',
+    justifyContent: 'center',
     alignItems: 'center',
-    justifyContent: 'center',
+    marginRight: 15,
   },
-  percentageText: {
-    fontSize: 28,
+  subjectIconText: {
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#1F3864',
   },
-  attendanceSubtitle: {
+  subjectName: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  badge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  badgeText: {
     fontSize: 14,
-    color: '#4CAF50',
-    fontWeight: '500',
-    marginTop: 15,
+    fontWeight: 'bold',
   },
   actionsContainer: {
     width: '100%',
