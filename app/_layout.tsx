@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import { useAuthStore } from '../store/authStore';
@@ -8,7 +9,7 @@ import { useThemeStore } from '../store/themeStore';
 
 export default function RootLayout() {
   const { isLoggedIn, user } = useAuthStore();
-  const { isDarkMode, colors } = useThemeStore();
+  const { isDarkMode, colors, toggleTheme } = useThemeStore();
   const segments = useSegments();
   const router = useRouter();
   
@@ -55,7 +56,17 @@ export default function RootLayout() {
         <Stack.Screen name="login" />
         <Stack.Screen name="(teacher)" />
         <Stack.Screen name="(student)" />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal', headerStyle: { backgroundColor: colors.primary }, headerTintColor: '#FFF' }} />
+        <Stack.Screen name="modal" options={{ 
+          presentation: 'modal', 
+          title: 'Modal', 
+          headerStyle: { backgroundColor: colors.primary }, 
+          headerTintColor: '#FFF',
+          headerRight: () => (
+            <TouchableOpacity onPress={toggleTheme} style={{ marginRight: 15 }}>
+              <Ionicons name={isDarkMode ? 'sunny-outline' : 'moon-outline'} size={24} color="#FFF" />
+            </TouchableOpacity>
+          )
+        }} />
       </Stack>
       <StatusBar style={isDarkMode ? "light" : "dark"} />
     </>

@@ -77,10 +77,22 @@ export default function TeacherProfileScreen() {
     );
 
     return (
-      <View style={{ position: 'absolute', width: 24, height: 24, justifyContent: 'center', alignItems: 'center' }}>
-        {renderRing(ring1)}
-        {renderRing(ring2)}
-        {renderRing(ring3)}
+      <View 
+        pointerEvents="none" 
+        style={{ 
+          position: 'absolute', 
+          width: 120, 
+          height: 120, 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          overflow: 'hidden' 
+        }}
+      >
+        <View style={{ width: 24, height: 24, justifyContent: 'center', alignItems: 'center', overflow: 'visible' }}>
+          {renderRing(ring1)}
+          {renderRing(ring2)}
+          {renderRing(ring3)}
+        </View>
       </View>
     );
   };

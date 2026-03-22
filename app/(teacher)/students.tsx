@@ -18,6 +18,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 }
 import { MaterialIcons } from '@expo/vector-icons';
 import { useThemeStore } from '../../store/themeStore';
+import { useStudentsStore } from '../../store/studentsStore';
 
 // Mock Data
 const MOCK_STUDENTS = [
@@ -31,7 +32,7 @@ const MOCK_STUDENTS = [
 
 export default function TeacherStudentsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortType, setSortType] = useState<'name' | 'attendance'>('name');
+  const { sortType, setSortType } = useStudentsStore();
   const { colors } = useThemeStore();
 
   const handleSortChange = (type: 'name' | 'attendance') => {
