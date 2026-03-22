@@ -10,6 +10,7 @@ import {
   SafeAreaView
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useThemeStore } from '../../store/themeStore';
 
 // Mock Data
 const MOCK_STUDENTS = [
@@ -23,6 +24,7 @@ const MOCK_STUDENTS = [
 
 export default function TeacherStudentsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
+  const { colors } = useThemeStore();
 
   const filteredStudents = MOCK_STUDENTS.filter((student) => 
     student.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -39,25 +41,25 @@ export default function TeacherStudentsScreen() {
   };
 
   const getBadgeColor = (percentage: number) => {
-    if (percentage >= 75) return '#4CAF50'; // Green
-    if (percentage >= 60) return '#FFEB3B'; // Yellow
-    return '#F44336'; // Red
+    if (percentage >= 75) return colors.badgeGreen;
+    if (percentage >= 60) return colors.badgeYellow;
+    return colors.badgeRed;
   };
 
   const getBadgeTextColor = (percentage: number) => {
-    if (percentage >= 60 && percentage < 75) return '#333333'; // Dark text for yellow
-    return '#FFFFFF'; // White text for green/red
+    if (percentage >= 60 && percentage < 75) return '#333333';
+    return '#FFFFFF'; 
   };
 
   const renderStudentCard = ({ item }: { item: typeof MOCK_STUDENTS[0] }) => (
-    <TouchableOpacity style={styles.card}>
+    <TouchableOpacity style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
       <View style={styles.cardLeft}>
-        <View style={styles.avatar}>
+        <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
           <Text style={styles.avatarText}>{item.name[0]}</Text>
         </View>
         <View style={styles.info}>
-          <Text style={styles.name}>{item.name}</Text>
-          <Text style={styles.email}>{item.email}</Text>
+          <Text style={[styles.name, { color: colors.text }]}>{item.name}</Text>
+          <Text style={[styles.email, { color: colors.subtext }]}>{item.email}</Text>
         </View>
       </View>
       
@@ -77,26 +79,26 @@ export default function TeacherStudentsScreen() {
             {item.attendance}%
           </Text>
         </View>
-        <MaterialIcons name="chevron-right" size={24} color="#C7C7CC" />
+        <MaterialIcons name="chevron-right" size={24} color={colors.subtext} />
       </View>
     </TouchableOpacity>
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Alert Banner Button */}
-      <TouchableOpacity style={styles.alertBanner} onPress={handleSendAlert}>
+      <TouchableOpacity style={[styles.alertBanner, { backgroundColor: colors.badgeRed, shadowColor: colors.badgeRed }]} onPress={handleSendAlert}>
         <MaterialIcons name="warning" size={24} color="#FFFFFF" style={styles.alertIcon} />
         <Text style={styles.alertText}>Send Alert to All Below 75%</Text>
       </TouchableOpacity>
 
       {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <MaterialIcons name="search" size={20} color="#8E8E93" style={styles.searchIcon} />
+      <View style={[styles.searchContainer, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
+        <MaterialIcons name="search" size={20} color={colors.subtext} style={styles.searchIcon} />
         <TextInput
-          style={styles.searchInput}
+          style={[styles.searchInput, { color: colors.text }]}
           placeholder="Search students by name..."
-          placeholderTextColor="#8E8E93"
+          placeholderTextColor={colors.subtext}
           value={searchQuery}
           onChangeText={setSearchQuery}
           clearButtonMode="while-editing"
@@ -111,7 +113,7 @@ export default function TeacherStudentsScreen() {
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
-          <Text style={styles.emptyText}>No students found.</Text>
+          <Text style={[styles.emptyText, { color: colors.subtext }]}>No students found.</Text>
         }
       />
     </SafeAreaView>

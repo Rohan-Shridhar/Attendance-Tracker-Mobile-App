@@ -9,8 +9,9 @@ import {
   Platform, 
   SafeAreaView 
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../store/authStore';
+import { useThemeStore } from '../store/themeStore';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -19,6 +20,7 @@ export default function LoginScreen() {
   const [errorVisible, setErrorVisible] = useState(false);
 
   const login = useAuthStore((state) => state.login);
+  const { colors, isDarkMode, toggleTheme } = useThemeStore();
 
   const handleLogin = () => {
     setErrorVisible(false);
@@ -30,24 +32,28 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
+      <TouchableOpacity onPress={toggleTheme} style={styles.themeToggle}>
+        <Ionicons name={isDarkMode ? 'sunny-outline' : 'moon-outline'} size={28} color={colors.text} />
+      </TouchableOpacity>
+      
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.container}
       >
         <View style={styles.headerContainer}>
-          <Text style={styles.logo}>Attendance Tracker</Text>
+          <Text style={[styles.logo, { color: colors.primary }]}>Attendance Tracker</Text>
         </View>
 
         <View style={styles.formContainer}>
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email</Text>
-            <View style={styles.inputWrapper}>
-              <MaterialIcons name="email" size={20} color="#666" style={styles.icon} />
+            <Text style={[styles.label, { color: colors.text }]}>Email</Text>
+            <View style={[styles.inputWrapper, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
+              <MaterialIcons name="email" size={20} color={colors.subtext} style={styles.icon} />
               <TextInput
-                style={styles.input}
+                style={[styles.input, { color: colors.text }]}
                 placeholder="teacher@test.com or student@test.com"
-                placeholderTextColor="#999"
+                placeholderTextColor={colors.subtext}
                 value={email}
                 onChangeText={(text) => {
                   setEmail(text);
@@ -60,13 +66,13 @@ export default function LoginScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Password</Text>
-            <View style={styles.inputWrapper}>
-              <MaterialIcons name="lock" size={20} color="#666" style={styles.icon} />
+            <Text style={[styles.label, { color: colors.text }]}>Password</Text>
+            <View style={[styles.inputWrapper, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
+              <MaterialIcons name="lock" size={20} color={colors.subtext} style={styles.icon} />
               <TextInput
-                style={styles.input}
+                style={[styles.input, { color: colors.text }]}
                 placeholder="Enter password"
-                placeholderTextColor="#999"
+                placeholderTextColor={colors.subtext}
                 value={password}
                 onChangeText={(text) => {
                   setPassword(text);
@@ -79,17 +85,17 @@ export default function LoginScreen() {
                 style={styles.eyeIcon}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <MaterialIcons name={showPassword ? "visibility" : "visibility-off"} size={20} color="#666" />
+                <MaterialIcons name={showPassword ? "visibility" : "visibility-off"} size={20} color={colors.subtext} />
               </TouchableOpacity>
             </View>
           </View>
 
-          <TouchableOpacity style={styles.button} onPress={handleLogin}>
+          <TouchableOpacity style={[styles.button, { backgroundColor: colors.primary, shadowColor: colors.primary }]} onPress={handleLogin}>
             <Text style={styles.buttonText}>Login</Text>
           </TouchableOpacity>
 
           {errorVisible && (
-            <Text style={styles.errorText}>
+            <Text style={[styles.errorText, { color: colors.badgeRed }]}>
               Invalid email or password. Please try again.
             </Text>
           )}
@@ -102,7 +108,13 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+  },
+  themeToggle: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 60 : 40,
+    right: 20,
+    zIndex: 10,
+    padding: 10,
   },
   container: {
     flex: 1,
@@ -116,14 +128,9 @@ const styles = StyleSheet.create({
   logo: {
     fontSize: 48,
     fontWeight: 'bold',
-    color: '#1F3864',
     letterSpacing: -1,
     marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#666',
-    fontWeight: '500',
+    textAlign: 'center',
   },
   formContainer: {
     width: '100%',
@@ -133,7 +140,6 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    color: '#333',
     marginBottom: 8,
     fontWeight: '600',
   },
@@ -141,9 +147,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E0E0E0',
     borderRadius: 12,
-    backgroundColor: '#F9F9F9',
     paddingHorizontal: 15,
     height: 55,
   },
@@ -153,19 +157,16 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 16,
-    color: '#333',
   },
   eyeIcon: {
     padding: 5,
   },
   button: {
-    backgroundColor: '#1F3864',
     borderRadius: 12,
     height: 55,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 10,
-    shadowColor: '#1F3864',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 5,
@@ -177,7 +178,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   errorText: {
-    color: '#D32F2F',
     marginTop: 15,
     textAlign: 'center',
     fontSize: 14,

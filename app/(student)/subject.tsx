@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, FlatList, SafeAreaView } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useThemeStore } from '../../store/themeStore';
 
 // Mock data generator
 const generateMockRecords = () => {
@@ -29,24 +30,25 @@ const generateMockRecords = () => {
 export default function SubjectDetailScreen() {
   const { name, percentage } = useLocalSearchParams<{ name: string; percentage: string }>();
   const records = React.useMemo(() => generateMockRecords(), []);
+  const { colors } = useThemeStore();
   
   const pct = parseInt(percentage || '0', 10);
   
-  let badgeColor = { bg: '#FFEBEE', text: '#C62828' };
-  if (pct >= 75) badgeColor = { bg: '#E8F5E9', text: '#2E7D32' };
-  else if (pct >= 60) badgeColor = { bg: '#FFF8E1', text: '#F57F17' };
+  let badgeColor = { bg: colors.badgeRed + '33', text: colors.badgeRed };
+  if (pct >= 75) badgeColor = { bg: colors.badgeGreen + '33', text: colors.badgeGreen };
+  else if (pct >= 60) badgeColor = { bg: colors.badgeYellow + '33', text: colors.badgeYellow };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header Info */}
-      <View style={styles.headerCard}>
+      <View style={[styles.headerCard, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <View style={styles.headerTop}>
-          <Text style={styles.subjectName}>{name || 'Subject'}</Text>
+          <Text style={[styles.subjectName, { color: colors.primary }]}>{name || 'Subject'}</Text>
           <View style={[styles.badge, { backgroundColor: badgeColor.bg }]}>
             <Text style={[styles.badgeText, { color: badgeColor.text }]}>{pct}%</Text>
           </View>
         </View>
-        <Text style={styles.subtitle}>Recent Attendance Records</Text>
+        <Text style={[styles.subtitle, { color: colors.subtext }]}>Recent Attendance Records</Text>
       </View>
 
       {/* Records List */}
@@ -55,18 +57,18 @@ export default function SubjectDetailScreen() {
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
         renderItem={({ item }) => (
-          <View style={styles.recordCard}>
+          <View style={[styles.recordCard, { backgroundColor: colors.card }]}>
             <View style={styles.dateContainer}>
-              <MaterialIcons name="event" size={20} color="#666" style={styles.icon} />
-              <Text style={styles.dateText}>{item.date}</Text>
+              <MaterialIcons name="event" size={20} color={colors.subtext} style={styles.icon} />
+              <Text style={[styles.dateText, { color: colors.text }]}>{item.date}</Text>
             </View>
             <View style={styles.statusContainer}>
               {item.isPresent ? (
-                <MaterialIcons name="check-circle" size={24} color="#4CAF50" />
+                <MaterialIcons name="check-circle" size={24} color={colors.badgeGreen} />
               ) : (
-                <MaterialIcons name="cancel" size={24} color="#F44336" />
+                <MaterialIcons name="cancel" size={24} color={colors.badgeRed} />
               )}
-              <Text style={[styles.statusText, { color: item.isPresent ? '#4CAF50' : '#F44336' }]}>
+              <Text style={[styles.statusText, { color: item.isPresent ? colors.badgeGreen : colors.badgeRed }]}>
                 {item.isPresent ? 'Present' : 'Absent'}
               </Text>
             </View>
@@ -80,13 +82,10 @@ export default function SubjectDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F7FA',
   },
   headerCard: {
-    backgroundColor: '#FFFFFF',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
     alignItems: 'center',
     marginBottom: 10,
   },
@@ -99,7 +98,6 @@ const styles = StyleSheet.create({
   subjectName: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#1F3864',
     marginRight: 15,
   },
   badge: {
@@ -113,7 +111,6 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 16,
-    color: '#666',
     fontWeight: '500',
   },
   listContent: {
@@ -121,7 +118,6 @@ const styles = StyleSheet.create({
   },
   recordCard: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 16,
     marginBottom: 10,
@@ -142,13 +138,12 @@ const styles = StyleSheet.create({
   },
   dateText: {
     fontSize: 16,
-    color: '#333',
     fontWeight: '500',
   },
   statusContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    width: 80,
+    justifyContent: 'flex-start',
   },
   statusText: {
     fontSize: 14,

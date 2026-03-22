@@ -3,9 +3,11 @@ import { View, Text, StyleSheet, TouchableOpacity, Modal, SafeAreaView, ScrollVi
 import { useAuthStore } from '../../store/authStore';
 import { MaterialIcons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
+import { useThemeStore } from '../../store/themeStore';
 
 export default function TeacherProfileScreen() {
   const { user, logout } = useAuthStore();
+  const { colors } = useThemeStore();
   const [isBeaconActive, setIsBeaconActive] = useState(false);
   const [isQRModalVisible, setIsQRModalVisible] = useState(false);
   const [studentCount, setStudentCount] = useState(0);
@@ -40,38 +42,38 @@ export default function TeacherProfileScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         
         {/* Profile Card */}
         <View style={styles.profileSection}>
-          <View style={styles.avatarContainer}>
+          <View style={[styles.avatarContainer, { backgroundColor: colors.primary, shadowColor: colors.primary }]}>
             <Text style={styles.avatarText}>{getInitials(user?.name)}</Text>
           </View>
-          <Text style={styles.nameText}>{user?.name || 'Teacher Name'}</Text>
-          <Text style={styles.emailText}>{user?.email || 'teacher@example.com'}</Text>
-          <View style={styles.departmentBadge}>
-             <Text style={styles.departmentText}>Computer Science</Text>
+          <Text style={[styles.nameText, { color: colors.text }]}>{user?.name || 'Teacher Name'}</Text>
+          <Text style={[styles.emailText, { color: colors.subtext }]}>{user?.email || 'teacher@example.com'}</Text>
+          <View style={[styles.departmentBadge, { backgroundColor: colors.inputBackground }]}>
+             <Text style={[styles.departmentText, { color: colors.primary }]}>Computer Science</Text>
           </View>
         </View>
 
         {/* Stats Card */}
-        <View style={styles.statsCard}>
+        <View style={[styles.statsCard, { backgroundColor: colors.card, shadowColor: '#000' }]}>
           <View style={styles.statBox}>
-            <Text style={styles.statNumber}>3</Text>
-            <Text style={styles.statLabel}>Classes Today</Text>
+            <Text style={[styles.statNumber, { color: colors.primary }]}>3</Text>
+            <Text style={[styles.statLabel, { color: colors.subtext }]}>Classes Today</Text>
           </View>
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
           <View style={styles.statBox}>
-            <Text style={styles.statNumber}>145</Text>
-            <Text style={styles.statLabel}>Total Students</Text>
+            <Text style={[styles.statNumber, { color: colors.primary }]}>145</Text>
+            <Text style={[styles.statLabel, { color: colors.subtext }]}>Total Students</Text>
           </View>
         </View>
 
         {/* Action Buttons */}
         <View style={styles.actionsContainer}>
           <TouchableOpacity 
-            style={styles.primaryButton} 
+            style={[styles.primaryButton, { backgroundColor: colors.primary, shadowColor: colors.primary }]} 
             onPress={() => setIsQRModalVisible(true)}
           >
             <MaterialIcons name="qr-code" size={24} color="#FFFFFF" style={styles.btnIcon} />
@@ -79,25 +81,25 @@ export default function TeacherProfileScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={[styles.primaryButton, isBeaconActive ? styles.beaconActiveBtn : styles.beaconOffBtn]} 
+            style={[styles.primaryButton, isBeaconActive ? { backgroundColor: colors.badgeGreen, shadowColor: colors.badgeGreen } : { backgroundColor: colors.card, borderColor: colors.primary, borderWidth: 1.5, shadowOpacity: 0, elevation: 0 }]} 
             onPress={() => setIsBeaconActive(!isBeaconActive)}
           >
             <MaterialIcons 
               name={isBeaconActive ? "bluetooth-connected" : "bluetooth"} 
               size={24} 
-              color={isBeaconActive ? "#FFFFFF" : "#1F3864"} 
+              color={isBeaconActive ? "#FFFFFF" : colors.primary} 
               style={styles.btnIcon} 
             />
-            <Text style={isBeaconActive ? styles.primaryButtonText : styles.secondaryButtonText}>
+            <Text style={isBeaconActive ? styles.primaryButtonText : [styles.secondaryButtonText, { color: colors.primary }]}>
               {isBeaconActive ? 'Beacon Active' : 'Turn On Bluetooth Beacon'}
             </Text>
           </TouchableOpacity>
 
           {isBeaconActive && (
-            <View style={styles.beaconCard}>
-              <Text style={styles.beaconText}>{studentCount} students connected</Text>
+            <View style={[styles.beaconCard, { backgroundColor: colors.inputBackground }]}>
+              <Text style={[styles.beaconText, { color: colors.primary }]}>{studentCount} students connected</Text>
               <TouchableOpacity 
-                style={styles.saveAttendanceBtn}
+                style={[styles.saveAttendanceBtn, { backgroundColor: colors.badgeGreen }]}
                 disabled={studentCount === 0}
                 onPress={() => setIsConfirmationVisible(true)}
               >
@@ -110,9 +112,9 @@ export default function TeacherProfileScreen() {
         <View style={styles.spacer} />
 
         {/* Logout Button */}
-        <TouchableOpacity style={styles.logoutButton} onPress={logout}>
-          <MaterialIcons name="logout" size={20} color="#D32F2F" style={styles.btnIcon} />
-          <Text style={styles.logoutButtonText}>Logout</Text>
+        <TouchableOpacity style={[styles.logoutButton, { backgroundColor: colors.badgeRed + '15', borderColor: colors.badgeRed + '40' }]} onPress={logout}>
+          <MaterialIcons name="logout" size={20} color={colors.badgeRed} style={styles.btnIcon} />
+          <Text style={[styles.logoutButtonText, { color: colors.badgeRed }]}>Logout</Text>
         </TouchableOpacity>
 
       </ScrollView>
@@ -130,10 +132,10 @@ export default function TeacherProfileScreen() {
           onPressOut={() => setIsQRModalVisible(false)}
         >
           <TouchableWithoutFeedback>
-            <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Scan for Attendance</Text>
+            <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Scan for Attendance</Text>
             
-            <View style={styles.qrContainer}>
+            <View style={[styles.qrContainer, { backgroundColor: '#FFFFFF', borderColor: colors.border }]}>
               <QRCode
                 value="SESSION-MOCK-001"
                 size={220}
@@ -142,10 +144,10 @@ export default function TeacherProfileScreen() {
               />
             </View>
             
-            <Text style={styles.modalSubText}>Session ID: SESSION-MOCK-001</Text>
+            <Text style={[styles.modalSubText, { color: colors.subtext }]}>Session ID: SESSION-MOCK-001</Text>
             
             <TouchableOpacity 
-              style={styles.closeButton} 
+              style={[styles.closeButton, { backgroundColor: colors.primary }]} 
               onPress={() => setIsQRModalVisible(false)}
             >
               <Text style={styles.closeButtonText}>Close</Text>
@@ -163,19 +165,19 @@ export default function TeacherProfileScreen() {
         onRequestClose={() => setIsConfirmationVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.confirmModalContent}>
-            <Text style={styles.confirmModalTitle}>Confirm Attendance</Text>
-            <Text style={styles.confirmModalText}>{studentCount} students will be marked present</Text>
+          <View style={[styles.confirmModalContent, { backgroundColor: colors.card }]}>
+            <Text style={[styles.confirmModalTitle, { color: colors.text }]}>Confirm Attendance</Text>
+            <Text style={[styles.confirmModalText, { color: colors.subtext }]}>{studentCount} students will be marked present</Text>
             
             <View style={styles.confirmButtonRow}>
               <TouchableOpacity 
-                style={styles.cancelButton} 
+                style={[styles.cancelButton, { borderColor: colors.badgeRed }]} 
                 onPress={() => setIsConfirmationVisible(false)}
               >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
+                <Text style={[styles.cancelButtonText, { color: colors.badgeRed }]}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity 
-                style={styles.saveConfirmButton} 
+                style={[styles.saveConfirmButton, { backgroundColor: colors.primary }]} 
                 onPress={handleSaveAttendance}
               >
                 <Text style={styles.saveConfirmButtonText}>Save</Text>
@@ -187,7 +189,7 @@ export default function TeacherProfileScreen() {
 
       {/* Toast Notification */}
       {showToast && (
-        <View style={styles.toastContainer}>
+        <View style={[styles.toastContainer, { backgroundColor: colors.badgeGreen }]}>
           <Text style={styles.toastText}>Attendance Saved!</Text>
         </View>
       )}

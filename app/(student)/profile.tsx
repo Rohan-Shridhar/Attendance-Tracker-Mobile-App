@@ -9,21 +9,30 @@ import {
   ScrollView,
   Animated,
   Button,
-  TouchableWithoutFeedback
+  TouchableWithoutFeedback,
+  ActivityIndicator // Added for the new modal
 } from 'react-native';
 import { useAuthStore } from '../../store/authStore';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useThemeStore } from '../../store/themeStore'; // Added this import
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRouter } from 'expo-router';
 
 export default function StudentProfileScreen() {
   const { user, logout } = useAuthStore();
+  const { colors } = useThemeStore(); // Added this line
   const router = useRouter();
   const [isBeaconActive, setIsBeaconActive] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
   const [successModalVisible, setSuccessModalVisible] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+
+  // New states for the updated UI
+  const [isScannerVisible, setIsScannerVisible] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
 
   // Animation for bluetooth pulse
   const pulseAnim = React.useRef(new Animated.Value(1)).current;
@@ -51,11 +60,13 @@ export default function StudentProfileScreen() {
   }, [isBeaconActive, pulseAnim]);
 
   const handleScanQRCode = () => {
-    if (!permission?.granted) {
-      requestPermission();
-    } else {
-      setIsScanning(true);
-    }
+    // Original logic for camera permission, now just opens the mock scanner
+    // if (!permission?.granted) {
+    //   requestPermission();
+    // } else {
+    //   setIsScanning(true);
+    // }
+    setIsScannerVisible(true); // Open the mock scanner modal
   };
 
   const handleBarcodeScanned = ({ data }: { data: string }) => {
@@ -67,6 +78,30 @@ export default function StudentProfileScreen() {
   const handleMarkPresent = () => {
     setSuccessMessage('Attendance Marked via Bluetooth!');
     setSuccessModalVisible(true);
+  };
+
+  // New functions for updated UI
+  const handleConnectBluetooth = () => {
+    setIsConnecting(true);
+    // Simulate a connection attempt
+    setTimeout(() => {
+      setIsConnecting(false);
+      const success = Math.random() > 0.5; // 50% chance of success
+      if (success) {
+        setToastMessage('Successfully connected to teacher!');
+      } else {
+        setToastMessage('Failed to connect. Try again.');
+      }
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000); // Hide toast after 3 seconds
+    }, 2000); // Simulate 2 seconds connection time
+  };
+
+  const mockSuccessfulScan = () => {
+    setIsScannerVisible(false);
+    setToastMessage('QR Code Scanned! Attendance Marked.');
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 3000);
   };
 
   const getInitials = (name?: string) => {
@@ -82,44 +117,44 @@ export default function StudentProfileScreen() {
   ];
 
   const getBadgeColor = (percentage: number) => {
-    if (percentage >= 75) return { bg: '#E8F5E9', text: '#2E7D32' };
-    if (percentage >= 60) return { bg: '#FFF8E1', text: '#F57F17' };
-    return { bg: '#FFEBEE', text: '#C62828' };
+    if (percentage >= 75) return { bg: colors.badgeGreen + '33', text: colors.badgeGreen };
+    if (percentage >= 60) return { bg: colors.badgeYellow + '33', text: colors.badgeYellow };
+    return { bg: colors.badgeRed + '33', text: colors.badgeRed };
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        
+
         {/* Profile Card */}
         <View style={styles.profileSection}>
-          <View style={styles.avatarContainer}>
+          <View style={[styles.avatarContainer, { backgroundColor: colors.primary, shadowColor: colors.primary }]}>
             <Text style={styles.avatarText}>{getInitials(user?.name)}</Text>
           </View>
-          <Text style={styles.nameText}>{user?.name || 'Student Name'}</Text>
-          <Text style={styles.emailText}>{user?.email || 'student@example.com'}</Text>
-          <View style={styles.enrollmentBadge}>
-             <Text style={styles.enrollmentText}>EN2024001</Text>
+          <Text style={[styles.nameText, { color: colors.text }]}>{user?.name || 'Student Name'}</Text>
+          <Text style={[styles.emailText, { color: colors.subtext }]}>{user?.email || 'student@example.com'}</Text>
+          <View style={[styles.enrollmentBadge, { backgroundColor: colors.card, borderColor: colors.border }]}>
+             <Text style={[styles.enrollmentText, { color: colors.primary }]}>EN2024001</Text>
           </View>
         </View>
 
         {/* Subjects List */}
         <View style={styles.subjectsContainer}>
-          <Text style={styles.sectionTitle}>My Subjects</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>My Subjects</Text>
           {subjects.map((subject) => {
-            const colors = getBadgeColor(subject.percentage);
+            const subjectColors = getBadgeColor(subject.percentage);
             return (
-              <TouchableOpacity 
-                key={subject.id} 
-                style={styles.subjectCard}
+              <TouchableOpacity
+                key={subject.id}
+                style={[styles.subjectCard, { backgroundColor: colors.card, shadowColor: colors.primary }]}
                 onPress={() => router.push({ pathname: '/(student)/subject', params: { name: subject.name, percentage: subject.percentage } })}
               >
-                <View style={styles.subjectIcon}>
-                  <Text style={styles.subjectIconText}>{subject.name.substring(0, 1)}</Text>
+                <View style={[styles.subjectIcon, { backgroundColor: colors.inputBackground }]}>
+                  <Text style={[styles.subjectIconText, { color: colors.primary }]}>{subject.name.substring(0, 1)}</Text>
                 </View>
-                <Text style={styles.subjectName}>{subject.name}</Text>
-                <View style={[styles.badge, { backgroundColor: colors.bg }]}>
-                  <Text style={[styles.badgeText, { color: colors.text }]}>
+                <Text style={[styles.subjectName, { color: colors.text }]}>{subject.name}</Text>
+                <View style={[styles.badge, { backgroundColor: subjectColors.bg }]}>
+                  <Text style={[styles.badgeText, { color: subjectColors.text }]}>
                     {subject.percentage}%
                   </Text>
                 </View>
@@ -130,50 +165,103 @@ export default function StudentProfileScreen() {
 
         {/* Actions Section */}
         <View style={styles.actionsContainer}>
-          <TouchableOpacity style={styles.primaryButton} onPress={handleScanQRCode}>
-            <MaterialIcons name="qr-code-scanner" size={24} color="#FFF" style={styles.btnIcon} />
-            <Text style={styles.primaryButtonText}>Scan QR Code</Text>
+          <TouchableOpacity style={[styles.primaryButton, { backgroundColor: colors.primary, shadowColor: colors.primary }]} onPress={handleScanQRCode}>
+            <MaterialIcons name="qr-code-scanner" size={24} color="#FFFFFF" style={styles.btnIcon} />
+            <Text style={styles.primaryButtonText}>Scan Teacher QR</Text>
           </TouchableOpacity>
 
-          {/* Bluetooth Pill Toggle */}
-          <TouchableOpacity 
-            style={[styles.btPill, isBeaconActive ? styles.btPillActive : styles.btPillInactive]} 
-            onPress={() => setIsBeaconActive(!isBeaconActive)}
+          <TouchableOpacity
+            style={[styles.primaryButton, { backgroundColor: colors.card, borderColor: colors.primary, borderWidth: 1.5, shadowOpacity: 0, elevation: 0 }]}
+            onPress={handleConnectBluetooth}
           >
-            <Animated.View style={{ opacity: isBeaconActive ? pulseAnim : 1 }}>
-              <MaterialIcons 
-                name={isBeaconActive ? "bluetooth-searching" : "bluetooth-disabled"} 
-                size={22} 
-                color={isBeaconActive ? "#FFF" : "#666"} 
-                style={styles.btIconPill} 
-              />
-            </Animated.View>
-            <Text style={isBeaconActive ? styles.btPillTextActive : styles.btPillTextInactive}>
-              {isBeaconActive ? 'BT Scanning...' : 'Bluetooth Off'}
-            </Text>
+            <MaterialIcons name="bluetooth" size={24} color={colors.primary} style={styles.btnIcon} />
+            <Text style={[styles.secondaryButtonText, { color: colors.primary }]}>Connect via Bluetooth</Text>
           </TouchableOpacity>
-
-          {/* Mark Present Button - ONLY visible if BT is Active */}
-          {isBeaconActive && (
-            <TouchableOpacity style={styles.markPresentButton} onPress={handleMarkPresent}>
-              <MaterialIcons name="how-to-reg" size={24} color="#FFF" style={styles.btnIcon} />
-              <Text style={styles.primaryButtonText}>Mark Present</Text>
-            </TouchableOpacity>
-          )}
         </View>
-        
+
         <View style={styles.spacer} />
 
         {/* Logout Button */}
-        <TouchableOpacity style={styles.logoutButton} onPress={logout}>
-          <MaterialIcons name="logout" size={20} color="#D32F2F" style={styles.btnIcon} />
-          <Text style={styles.logoutButtonText}>Logout</Text>
+        <TouchableOpacity style={[styles.logoutButton, { backgroundColor: colors.badgeRed + '11', borderColor: colors.badgeRed + '44' }]} onPress={logout}>
+          <MaterialIcons name="logout" size={20} color={colors.badgeRed} style={styles.btnIcon} />
+          <Text style={[styles.logoutButtonText, { color: colors.badgeRed }]}>Logout</Text>
         </TouchableOpacity>
 
       </ScrollView>
 
-      {/* QR Scanner Modal */}
-      <Modal visible={isScanning} animationType="slide">
+      {/* QR Code Scanner Modal */}
+      <Modal
+        visible={isScannerVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setIsScannerVisible(false)}
+      >
+        <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+          <View style={[styles.modalHeader, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Scan QR Code</Text>
+            <TouchableOpacity onPress={() => setIsScannerVisible(false)}>
+              <MaterialIcons name="close" size={28} color={colors.text} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={[styles.scannerContainer, { backgroundColor: '#000' }]}>
+            {/* Mock Camera View */}
+            <View style={styles.mockCamera}>
+              <MaterialIcons name="camera-alt" size={64} color="#666" />
+              <Text style={styles.mockCameraText}>Camera View Placeholder</Text>
+            </View>
+
+            {/* Scanner Overlay UI */}
+            <View style={styles.scannerOverlay}>
+              <View style={styles.scanFrame} />
+            </View>
+          </View>
+
+          <View style={[styles.scannerFooter, { backgroundColor: colors.card }]}>
+            <Text style={[styles.scannerInstructions, { color: colors.subtext }]}>
+              Position the QR code within the frame to scan
+            </Text>
+            <TouchableOpacity
+              style={[styles.mockScanButton, { backgroundColor: colors.primary }]}
+              onPress={mockSuccessfulScan}
+            >
+              <Text style={styles.mockScanText}>Simulate Successful Scan</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Connection Mode Modal (Bluetooth fallback UI) */}
+      <Modal
+        visible={isConnecting}
+        transparent={true}
+        animationType="fade"
+      >
+        <View style={styles.modalOverlay}>
+           <View style={[styles.connectionModal, { backgroundColor: colors.card }]}>
+             <ActivityIndicator size="large" color={colors.primary} />
+             <Text style={[styles.connectionText, { color: colors.text }]}>
+               Connecting to Teacher's device...
+             </Text>
+           </View>
+        </View>
+      </Modal>
+
+      {/* Toast Notification */}
+      {showToast && (
+        <View style={[styles.toastContainer, { backgroundColor: toastMessage.includes('Failed') ? colors.badgeRed : colors.badgeGreen }]}>
+          <MaterialIcons
+            name={toastMessage.includes('Failed') ? "error-outline" : "check-circle"}
+            size={24}
+            color="#FFF"
+            style={styles.toastIcon}
+          />
+          <Text style={styles.toastText}>{toastMessage}</Text>
+        </View>
+      )}
+
+      {/* Original QR Scanner Modal (now unused due to new UI, but kept for context if needed) */}
+      {/* <Modal visible={isScanning} animationType="slide">
         <SafeAreaView style={styles.scannerContainer}>
           <View style={styles.scannerHeader}>
             <Text style={styles.scannerTitle}>Scan QR Code</Text>
@@ -534,5 +622,85 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  secondaryButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 10,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+  },
+  mockCamera: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  mockCameraText: {
+    color: '#666',
+    marginTop: 10,
+    fontSize: 16,
+  },
+  scannerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scannerFooter: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  scannerInstructions: {
+    marginBottom: 15,
+    fontSize: 14,
+  },
+  mockScanButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    width: '100%',
+    alignItems: 'center',
+  },
+  mockScanText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  connectionModal: {
+    padding: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+  },
+  connectionText: {
+    marginTop: 15,
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  toastContainer: {
+    position: 'absolute',
+    bottom: 40,
+    left: 20,
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 15,
+    borderRadius: 8,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  toastIcon: {
+    marginRight: 10,
+  },
+  toastText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '500',
   },
 });
