@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, SafeAreaView, ScrollView, TouchableWithoutFeedback } from 'react-native';
 import { useAuthStore } from '../../store/authStore';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -8,6 +8,31 @@ export default function TeacherProfileScreen() {
   const { user, logout } = useAuthStore();
   const [isBeaconActive, setIsBeaconActive] = useState(false);
   const [isQRModalVisible, setIsQRModalVisible] = useState(false);
+  const [studentCount, setStudentCount] = useState(0);
+  const [isConfirmationVisible, setIsConfirmationVisible] = useState(false);
+  const [showToast, setShowToast] = useState(false);
+
+  useEffect(() => {
+    let timer: any;
+    if (isBeaconActive) {
+      setStudentCount(0);
+      timer = setTimeout(() => {
+        setStudentCount(3);
+      }, 2000);
+    } else {
+      setStudentCount(0);
+    }
+    return () => clearTimeout(timer);
+  }, [isBeaconActive]);
+
+  const handleSaveAttendance = () => {
+    setIsConfirmationVisible(false);
+    setIsBeaconActive(false);
+    setShowToast(true);
+    setTimeout(() => {
+      setShowToast(false);
+    }, 2000);
+  };
 
   // Helper to get initials
   const getInitials = (name?: string) => {
@@ -67,6 +92,19 @@ export default function TeacherProfileScreen() {
               {isBeaconActive ? 'Beacon Active' : 'Turn On Bluetooth Beacon'}
             </Text>
           </TouchableOpacity>
+
+          {isBeaconActive && (
+            <View style={styles.beaconCard}>
+              <Text style={styles.beaconText}>{studentCount} students connected</Text>
+              <TouchableOpacity 
+                style={styles.saveAttendanceBtn}
+                disabled={studentCount === 0}
+                onPress={() => setIsConfirmationVisible(true)}
+              >
+                <Text style={styles.saveAttendanceBtnText}>Save Attendance</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
         
         <View style={styles.spacer} />
@@ -116,6 +154,43 @@ export default function TeacherProfileScreen() {
           </TouchableWithoutFeedback>
         </TouchableOpacity>
       </Modal>
+
+      {/* Confirmation Modal */}
+      <Modal
+        visible={isConfirmationVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setIsConfirmationVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.confirmModalContent}>
+            <Text style={styles.confirmModalTitle}>Confirm Attendance</Text>
+            <Text style={styles.confirmModalText}>{studentCount} students will be marked present</Text>
+            
+            <View style={styles.confirmButtonRow}>
+              <TouchableOpacity 
+                style={styles.cancelButton} 
+                onPress={() => setIsConfirmationVisible(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.saveConfirmButton} 
+                onPress={handleSaveAttendance}
+              >
+                <Text style={styles.saveConfirmButtonText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Toast Notification */}
+      {showToast && (
+        <View style={styles.toastContainer}>
+          <Text style={styles.toastText}>Attendance Saved!</Text>
+        </View>
+      )}
 
     </SafeAreaView>
   );
@@ -326,6 +401,108 @@ const styles = StyleSheet.create({
   closeButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
+    fontWeight: 'bold',
+  },
+  beaconCard: {
+    backgroundColor: '#E8EDF5',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    marginTop: 5,
+    marginBottom: 15,
+  },
+  beaconText: {
+    fontSize: 16,
+    color: '#1F3864',
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  saveAttendanceBtn: {
+    backgroundColor: '#4CAF50',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    width: '100%',
+    alignItems: 'center',
+  },
+  saveAttendanceBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  confirmModalContent: {
+    width: '85%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  confirmModalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333333',
+    marginBottom: 10,
+  },
+  confirmModalText: {
+    fontSize: 16,
+    color: '#666666',
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+  confirmButtonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  cancelButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D32F2F',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  cancelButtonText: {
+    color: '#D32F2F',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  saveConfirmButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: '#1F3864',
+    alignItems: 'center',
+    marginLeft: 10,
+  },
+  saveConfirmButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  toastContainer: {
+    position: 'absolute',
+    bottom: 50,
+    alignSelf: 'center',
+    backgroundColor: '#4CAF50',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 25,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  toastText: {
+    color: '#FFFFFF',
+    fontSize: 14,
     fontWeight: 'bold',
   },
 });
