@@ -6,6 +6,7 @@ import QRCode from 'react-native-qrcode-svg';
 import { useThemeStore } from '../../store/themeStore';
 import { useAttendanceStore } from '../../store/attendanceStore';
 import generateAttendanceToken, { getSecondsUntilNextToken } from '../../src/utils/tokenGenerator';
+import { getStudentCount } from '../../src/services/api';
 
 export default function TeacherProfileScreen() {
   const { user, logout } = useAuthStore();
@@ -19,6 +20,19 @@ export default function TeacherProfileScreen() {
   const [showToast, setShowToast] = useState(false);
   const [currentToken, setCurrentToken] = useState('');
   const [secondsLeft, setSecondsLeft] = useState(0);
+  const [studentCount, setStudentCount] = useState(0);
+
+  useEffect(() => {
+    const fetchStudentCount = async () => {
+      try {
+        const data = await getStudentCount();
+        setStudentCount(data.count);
+      } catch (error) {
+        console.error('Failed to fetch student count:', error);
+      }
+    };
+    fetchStudentCount();
+  }, []);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
@@ -88,19 +102,14 @@ export default function TeacherProfileScreen() {
           <Text style={[styles.nameText, { color: colors.text }]}>{user?.name || 'Teacher Name'}</Text>
           <Text style={[styles.emailText, { color: colors.subtext }]}>{user?.email || 'teacher@example.com'}</Text>
           <View style={[styles.departmentBadge, { backgroundColor: colors.inputBackground }]}>
-             <Text style={[styles.departmentText, { color: colors.primary }]}>Computer Science</Text>
+             <Text style={[styles.departmentText, { color: colors.primary }]}>{user?.subject || 'Subject'}</Text>
           </View>
         </View>
 
         {/* Stats Card */}
         <View style={[styles.statsCard, { backgroundColor: colors.card, shadowColor: '#000' }]}>
           <View style={styles.statBox}>
-            <Text style={[styles.statNumber, { color: colors.primary }]}>3</Text>
-            <Text style={[styles.statLabel, { color: colors.subtext }]}>Classes Today</Text>
-          </View>
-          <View style={[styles.divider, { backgroundColor: colors.border }]} />
-          <View style={styles.statBox}>
-            <Text style={[styles.statNumber, { color: colors.primary }]}>145</Text>
+            <Text style={[styles.statNumber, { color: colors.primary }]}>{studentCount}</Text>
             <Text style={[styles.statLabel, { color: colors.subtext }]}>Total Students</Text>
           </View>
         </View>

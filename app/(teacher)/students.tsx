@@ -10,7 +10,8 @@ import {
   SafeAreaView,
   LayoutAnimation,
   Platform,
-  UIManager
+  UIManager,
+  ActivityIndicator
 } from 'react-native';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -19,21 +20,35 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 import { MaterialIcons } from '@expo/vector-icons';
 import { useThemeStore } from '../../store/themeStore';
 import { useStudentsStore } from '../../store/studentsStore';
-
-// Mock Data
-const MOCK_STUDENTS = [
-  { id: '1', name: 'Alice Johnson', email: 'alice.j@student.edu', attendance: 85 },
-  { id: '2', name: 'Bob Smith', email: 'bob.s@student.edu', attendance: 65 },
-  { id: '3', name: 'Charlie Williams', email: 'charlie.w@student.edu', attendance: 55 },
-  { id: '4', name: 'Diana King', email: 'diana.k@student.edu', attendance: 92 },
-  { id: '5', name: 'Evan Davis', email: 'evan.d@student.edu', attendance: 40 },
-  { id: '6', name: 'Fiona Garcia', email: 'fiona.g@student.edu', attendance: 78 },
-];
+import { useAuthStore } from '../../store/authStore';
+import { getClassAttendance } from '../../src/services/api';
 
 export default function TeacherStudentsScreen() {
+  const { user } = useAuthStore();
+  const [students, setStudents] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const { sortType, setSortType } = useStudentsStore();
   const { colors } = useThemeStore();
+
+  const fetchStudents = async () => {
+    if (!user?.subject_id) return;
+    try {
+      setIsLoading(true);
+      setError(null);
+      const data = await getClassAttendance(user.subject_id);
+      setStudents(data);
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch students');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchStudents();
+  }, [user?.subject_id]);
 
   const handleSortChange = (type: 'name' | 'attendance') => {
     if (type !== sortType) {
@@ -42,24 +57,24 @@ export default function TeacherStudentsScreen() {
     }
   };
 
-  const filteredStudents = [...MOCK_STUDENTS]
+  const filteredStudents = [...students]
     .filter((student) => 
-      student.name.toLowerCase().includes(searchQuery.toLowerCase())
+      student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      student.usn.toLowerCase().includes(searchQuery.toLowerCase())
     )
     .sort((a, b) => {
       if (sortType === 'name') {
         return a.name.localeCompare(b.name);
       } else {
-        return a.attendance - b.attendance;
+        return b.percentage - a.percentage; // High to low for attendance
       }
     });
 
   const handleSendAlert = () => {
-    // Count students with attendance < 75%
-    const count = MOCK_STUDENTS.filter(s => s.attendance < 75).length;
+    const lowAttendanceCount = students.filter(s => s.percentage < 75).length;
     Alert.alert(
       'Alerts Sent',
-      `Alerts logically sent to ${count} students.`,
+      `Alerts sent to ${lowAttendanceCount} students below 75% attendance.`,
       [{ text: 'OK' }]
     );
   };
@@ -75,15 +90,19 @@ export default function TeacherStudentsScreen() {
     return '#FFFFFF'; 
   };
 
-  const renderStudentCard = ({ item }: { item: typeof MOCK_STUDENTS[0] }) => (
+  const getInitials = (name: string) => {
+    return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+  };
+
+  const renderStudentCard = ({ item }: { item: any }) => (
     <TouchableOpacity style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
       <View style={styles.cardLeft}>
         <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
-          <Text style={styles.avatarText}>{item.name[0]}</Text>
+          <Text style={styles.avatarText}>{getInitials(item.name)}</Text>
         </View>
         <View style={styles.info}>
           <Text style={[styles.name, { color: colors.text }]}>{item.name}</Text>
-          <Text style={[styles.email, { color: colors.subtext }]}>{item.email}</Text>
+          <Text style={[styles.email, { color: colors.subtext }]}>{item.usn}</Text>
         </View>
       </View>
       
@@ -91,16 +110,16 @@ export default function TeacherStudentsScreen() {
         <View 
           style={[
             styles.badge, 
-            { backgroundColor: getBadgeColor(item.attendance) }
+            { backgroundColor: getBadgeColor(item.percentage) }
           ]}
         >
           <Text 
             style={[
               styles.badgeText, 
-              { color: getBadgeTextColor(item.attendance) }
+              { color: getBadgeTextColor(item.percentage) }
             ]}
           >
-            {item.attendance}%
+            {item.percentage}%
           </Text>
         </View>
         <MaterialIcons name="chevron-right" size={24} color={colors.subtext} />
@@ -146,16 +165,34 @@ export default function TeacherStudentsScreen() {
       </View>
 
       {/* Student List */}
-      <FlatList
-        data={filteredStudents}
-        keyExtractor={(item) => item.id}
-        renderItem={renderStudentCard}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <Text style={[styles.emptyText, { color: colors.subtext }]}>No students found.</Text>
-        }
-      />
+      {isLoading ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={{ marginTop: 10, color: colors.subtext }}>Loading students...</Text>
+        </View>
+      ) : error ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <MaterialIcons name="error-outline" size={48} color={colors.badgeRed} />
+          <Text style={{ marginTop: 10, color: colors.text, textAlign: 'center' }}>{error}</Text>
+          <TouchableOpacity 
+            style={[styles.sortButton, { backgroundColor: colors.primary, marginTop: 20, paddingHorizontal: 30 }]}
+            onPress={fetchStudents}
+          >
+            <Text style={{ color: '#FFFFFF', fontWeight: 'bold' }}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredStudents}
+          keyExtractor={(item) => item.usn}
+          renderItem={renderStudentCard}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <Text style={[styles.emptyText, { color: colors.subtext }]}>No students found.</Text>
+          }
+        />
+      )}
     </SafeAreaView>
   );
 }
