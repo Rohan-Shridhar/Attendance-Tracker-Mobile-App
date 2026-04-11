@@ -85,7 +85,50 @@ const teacherLogin = async (req, res) => {
   }
 };
 
+// @desc    Change password
+// @route   POST /api/auth/change-password
+// @access  Public
+const changePassword = async (req, res) => {
+  const { role, identifier, currentPassword, newPassword } = req.body;
+
+  try {
+    // Validate new password format
+    if (!/^\d{4,}$/.test(newPassword)) {
+      return res.status(400).json({ message: 'New password must be at least 4 digits long and contain only numbers' });
+    }
+
+    if (currentPassword === newPassword) {
+      return res.status(400).json({ message: 'New password cannot be the same as current password' });
+    }
+
+    if (role === 'student') {
+      const id = identifier.toUpperCase();
+      const student = await Student.findOne({ usn: id });
+      if (!student) return res.status(404).json({ message: 'Student not found' });
+      if (Number(currentPassword) !== student.password) return res.status(401).json({ message: 'Incorrect current password' });
+      
+      student.password = Number(newPassword);
+      await student.save();
+      return res.status(200).json({ message: 'Password updated successfully' });
+    } else if (role === 'teacher') {
+      const id = identifier.toLowerCase();
+      const teacher = await Teacher.findOne({ email: id });
+      if (!teacher) return res.status(404).json({ message: 'Teacher not found' });
+      if (Number(currentPassword) !== teacher.password) return res.status(401).json({ message: 'Incorrect current password' });
+
+      teacher.password = Number(newPassword);
+      await teacher.save();
+      return res.status(200).json({ message: 'Password updated successfully' });
+    } else {
+      return res.status(400).json({ message: 'Invalid role' });
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   studentLogin,
   teacherLogin,
+  changePassword,
 };

@@ -98,3 +98,21 @@ export const getSubjectDetail = async (usn, subjectId) => {
   });
   return handleResponse(response);
 };
+
+/**
+ * Change the user's password
+ * @param {string} role 
+ * @param {string} identifier 
+ * @param {string} currentPassword 
+ * @param {string} newPassword 
+ */
+export const changePassword = async (role, identifier, currentPassword, newPassword) => {
+  const response = await fetch(`${BASE_URL}/auth/change-password`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ role, identifier, currentPassword, newPassword }),
+  });
+  return handleResponse(response);
+};
