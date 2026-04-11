@@ -8,9 +8,7 @@ import {
   SafeAreaView, 
   ScrollView,
   Animated,
-  Button,
   TouchableWithoutFeedback,
-  ActivityIndicator,
   Alert,
   Linking
 } from 'react-native';
@@ -22,98 +20,6 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useStudentAttendanceStore } from '../../store/studentAttendanceStore';
 
-function PulseRings({ isActive, color }: { isActive: boolean, color: string }) {
-  const ring1 = React.useRef(new Animated.Value(0)).current;
-  const ring2 = React.useRef(new Animated.Value(0)).current;
-  const ring3 = React.useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    let t1: ReturnType<typeof setTimeout>;
-    let t2: ReturnType<typeof setTimeout>;
-
-    if (isActive) {
-      const startAnim = (anim: Animated.Value) => {
-        anim.setValue(0);
-        Animated.loop(
-          Animated.timing(anim, {
-            toValue: 1,
-            duration: 1500,
-            useNativeDriver: true,
-          })
-        ).start();
-      };
-
-      startAnim(ring1);
-      t1 = setTimeout(() => startAnim(ring2), 500);
-      t2 = setTimeout(() => startAnim(ring3), 1000);
-
-      return () => {
-        clearTimeout(t1);
-        clearTimeout(t2);
-        ring1.stopAnimation();
-        ring2.stopAnimation();
-        ring3.stopAnimation();
-        ring1.setValue(0);
-        ring2.setValue(0);
-        ring3.setValue(0);
-      };
-    } else {
-      ring1.stopAnimation();
-      ring2.stopAnimation();
-      ring3.stopAnimation();
-      ring1.setValue(0);
-      ring2.setValue(0);
-      ring3.setValue(0);
-    }
-  }, [isActive, ring1, ring2, ring3]);
-
-  if (!isActive) return null;
-
-  const renderRing = (anim: Animated.Value) => (
-    <Animated.View
-      pointerEvents="none"
-      style={{
-        position: 'absolute',
-        width: 24,
-        height: 24,
-        borderRadius: 12,
-        backgroundColor: color,
-        opacity: anim.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0.6, 0],
-        }),
-        transform: [
-          {
-            scale: anim.interpolate({
-              inputRange: [0, 1],
-              outputRange: [1, 2.5],
-            }),
-          },
-        ],
-      }}
-    />
-  );
-
-  return (
-    <View 
-      pointerEvents="none" 
-      style={{ 
-        position: 'absolute', 
-        width: 120, 
-        height: 120, 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        overflow: 'hidden' 
-      }}
-    >
-      <View style={{ width: 24, height: 24, justifyContent: 'center', alignItems: 'center', overflow: 'visible' }}>
-        {renderRing(ring1)}
-        {renderRing(ring2)}
-        {renderRing(ring3)}
-      </View>
-    </View>
-  );
-}
 
 export default function StudentProfileScreen() {
   const { user, logout } = useAuthStore();
@@ -121,14 +27,13 @@ export default function StudentProfileScreen() {
   const router = useRouter();
 
   const {
-    qrScanned, bluetoothEnabled, beaconFound, attendanceSaved,
-    setQrScanned, setBluetoothEnabled, setBeaconFound, setAttendanceSaved, resetFlow
+    attendanceSaved,
+    setAttendanceSaved
   } = useStudentAttendanceStore();
 
   const [permission, requestPermission] = useCameraPermissions();
   const [isScannerVisible, setIsScannerVisible] = useState(false);
   
-  const [qrSuccessModalVisible, setQrSuccessModalVisible] = useState(false);
   const [attendanceSavedModalVisible, setAttendanceSavedModalVisible] = useState(false);
 
   const scanLineAnim = React.useRef(new Animated.Value(0)).current;
@@ -177,42 +82,13 @@ export default function StudentProfileScreen() {
 
   const handleBarcodeScanned = ({ data }: { data: string }) => {
     setIsScannerVisible(false);
-    setQrScanned(true);
-    setQrSuccessModalVisible(true);
-  };
-
-  const handleEnableBluetoothFromPopup = () => {
-    setQrSuccessModalVisible(false);
-    setBluetoothEnabled(true);
-  };
-
-  const handleToggleBluetooth = () => {
-    if (!qrScanned) return;
-    const newState = !bluetoothEnabled;
-    setBluetoothEnabled(newState);
-    if (!newState) {
-       setBeaconFound(false);
-    }
+    setAttendanceSavedModalVisible(true);
   };
 
   const handleAttendanceSavedOK = () => {
     setAttendanceSavedModalVisible(false);
     setAttendanceSaved(true);
-    setQrScanned(false);
-    setBluetoothEnabled(false);
-    setBeaconFound(false);
   };
-
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>;
-    if (bluetoothEnabled && qrScanned && !beaconFound) {
-      timer = setTimeout(() => {
-        setBeaconFound(true);
-        setAttendanceSavedModalVisible(true);
-      }, 4000);
-    }
-    return () => clearTimeout(timer);
-  }, [bluetoothEnabled, qrScanned, beaconFound]);
 
   const getInitials = (name?: string) => {
     return name ? name.split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase() : 'U';
@@ -277,54 +153,12 @@ export default function StudentProfileScreen() {
         {/* Actions Section */}
         <View style={styles.actionsContainer}>
           <TouchableOpacity 
-            style={[
-              styles.primaryButton, 
-              qrScanned 
-                ? { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1.5, shadowOpacity: 0, elevation: 0, opacity: 0.5 }
-                : { backgroundColor: colors.primary, shadowColor: colors.primary }
-            ]} 
+            style={[styles.primaryButton, { backgroundColor: colors.primary, shadowColor: colors.primary }]} 
             onPress={handleScanQRCode}
-            disabled={qrScanned}
           >
-            <MaterialIcons name="qr-code-scanner" size={24} color={qrScanned ? colors.subtext : "#FFFFFF"} style={styles.btnIcon} />
-            <Text style={qrScanned ? [styles.secondaryButtonText, { color: colors.subtext }] : styles.primaryButtonText}>Scan Teacher QR</Text>
+            <MaterialIcons name="qr-code-scanner" size={24} color="#FFFFFF" style={styles.btnIcon} />
+            <Text style={styles.primaryButtonText}>Scan Teacher QR</Text>
           </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.primaryButton, 
-              bluetoothEnabled
-                ? { backgroundColor: colors.badgeGreen, shadowColor: colors.badgeGreen, borderWidth: 0 }
-                : (qrScanned
-                   ? { backgroundColor: colors.card, borderColor: colors.primary, borderWidth: 1.5, shadowOpacity: 0, elevation: 0 }
-                   : { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1.5, shadowOpacity: 0, elevation: 0, opacity: 0.5 })
-            ]}
-            onPress={handleToggleBluetooth}
-            disabled={!qrScanned}
-          >
-            <View style={{ width: 24, height: 24, justifyContent: 'center', alignItems: 'center', marginRight: 4 }}>
-              <PulseRings isActive={bluetoothEnabled && !beaconFound} color={colors.primary} />
-              <MaterialIcons 
-                name={bluetoothEnabled ? "bluetooth-connected" : "bluetooth"} 
-                size={24} 
-                color={bluetoothEnabled ? "#FFFFFF" : (qrScanned ? colors.primary : colors.subtext)} 
-              />
-            </View>
-            <Text style={
-              bluetoothEnabled
-                ? styles.primaryButtonText
-                : [styles.secondaryButtonText, { color: qrScanned ? colors.primary : colors.subtext }]
-            }>
-              {bluetoothEnabled ? 'Bluetooth Active' : 'Turn On Bluetooth'}
-            </Text>
-          </TouchableOpacity>
-          
-          {/* Status Line */}
-          {qrScanned && (
-            <Text style={{ textAlign: 'center', color: colors.subtext, marginTop: 5, fontSize: 13, fontWeight: '500' }}>
-              QR Scanned ✓  |  {beaconFound ? 'Beacon Found ✓' : (bluetoothEnabled ? 'Searching for beacon...' : 'Bluetooth Pending...')}
-            </Text>
-          )}
 
           {attendanceSaved && (
              <Text style={{ textAlign: 'center', color: colors.badgeGreen, marginTop: 5, fontSize: 14, fontWeight: 'bold' }}>
@@ -334,7 +168,6 @@ export default function StudentProfileScreen() {
         </View>
 
         <View style={styles.spacer} />
-
         {/* Logout Button */}
         <TouchableOpacity style={[styles.logoutButton, { backgroundColor: colors.badgeRed + '11', borderColor: colors.badgeRed + '44' }]} onPress={logout}>
           <MaterialIcons name="logout" size={20} color={colors.badgeRed} style={styles.btnIcon} />
@@ -386,26 +219,7 @@ export default function StudentProfileScreen() {
         </View>
       </Modal>
 
-      {/* QR Success Modal */}
-      <Modal
-        visible={qrSuccessModalVisible}
-        transparent={true}
-        animationType="fade"
-      >
-        <View style={styles.modalOverlay}>
-           <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-             <MaterialIcons name="qr-code-scanner" size={50} color={colors.badgeGreen} style={{ marginBottom: 15 }} />
-             <Text style={[styles.modalTitle, { color: colors.text }]}>QR Scan Complete!</Text>
-             <Text style={[styles.modalSubText, { color: colors.subtext }]}>Step 2: Turn on Bluetooth to verify your presence and save attendance.</Text>
-             <TouchableOpacity 
-               style={[styles.closeButton, { backgroundColor: colors.badgeGreen }]} 
-               onPress={handleEnableBluetoothFromPopup}
-             >
-               <Text style={styles.closeButtonText}>Enable Bluetooth</Text>
-             </TouchableOpacity>
-           </View>
-        </View>
-      </Modal>
+
 
       {/* Attendance Marked Modal */}
       <Modal
@@ -417,7 +231,7 @@ export default function StudentProfileScreen() {
            <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
              <MaterialIcons name="check-circle" size={50} color={colors.badgeGreen} style={{ marginBottom: 15 }} />
              <Text style={[styles.modalTitle, { color: colors.text }]}>Attendance Marked!</Text>
-             <Text style={[styles.modalSubText, { color: colors.subtext }]}>Both QR scan and Bluetooth verified. You have been marked present.</Text>
+             <Text style={[styles.modalSubText, { color: colors.subtext }]}>Your QR scan has been verified. You have been marked present.</Text>
              <TouchableOpacity 
                style={[styles.closeButton, { backgroundColor: colors.primary }]} 
                onPress={handleAttendanceSavedOK}
@@ -573,56 +387,6 @@ const styles = StyleSheet.create({
   btnIcon: {
     marginRight: 4,
   },
-  btPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 50,
-    marginBottom: 15,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-  },
-  btPillInactive: {
-    backgroundColor: '#E0E0E0',
-  },
-  btPillActive: {
-    backgroundColor: '#2196F3',
-    shadowColor: '#2196F3',
-    shadowOpacity: 0.3,
-  },
-  btIconPill: {
-    marginRight: 8,
-  },
-  btPillTextInactive: {
-    color: '#666',
-    fontWeight: 'bold',
-    fontSize: 14,
-  },
-  btPillTextActive: {
-    color: '#FFF',
-    fontWeight: 'bold',
-    fontSize: 14,
-  },
-  markPresentButton: {
-    flexDirection: 'row',
-    backgroundColor: '#4CAF50',
-    borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '100%',
-    shadowColor: '#4CAF50',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
-    elevation: 4,
-  },
   spacer: {
     flex: 1,
     minHeight: 30,
@@ -732,41 +496,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  secondaryButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginLeft: 10,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-  },
-  mockCamera: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  mockCameraText: {
-    color: '#666',
-    marginTop: 10,
-    fontSize: 16,
-  },
-  scannerOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  scannerFooter: {
-    padding: 20,
-    alignItems: 'center',
-  },
-  scannerInstructions: {
-    marginBottom: 15,
-    fontSize: 14,
-  },
   mockScanButton: {
     paddingVertical: 12,
     paddingHorizontal: 20,
@@ -778,38 +507,5 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 16,
     fontWeight: 'bold',
-  },
-  connectionModal: {
-    padding: 30,
-    borderRadius: 15,
-    alignItems: 'center',
-  },
-  connectionText: {
-    marginTop: 15,
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  toastContainer: {
-    position: 'absolute',
-    bottom: 40,
-    left: 20,
-    right: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 15,
-    borderRadius: 8,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-  },
-  toastIcon: {
-    marginRight: 10,
-  },
-  toastText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: '500',
   },
 });
