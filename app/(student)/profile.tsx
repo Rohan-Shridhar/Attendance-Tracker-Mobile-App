@@ -11,7 +11,8 @@ import {
   TouchableWithoutFeedback,
   Alert,
   Linking,
-  Platform
+  Platform,
+  ActivityIndicator
 } from 'react-native';
 import { useAuthStore } from '../../store/authStore';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -21,6 +22,7 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useStudentAttendanceStore } from '../../store/studentAttendanceStore';
 import generateAttendanceToken from '../../src/utils/tokenGenerator';
+import { getStudentAttendance } from '../../src/services/api';
 
 
 export default function StudentProfileScreen() {
@@ -40,6 +42,24 @@ export default function StudentProfileScreen() {
   const [scannedToken, setScannedToken] = useState('');
   const [isValidating, setIsValidating] = useState(false);
   const [isVerificationError, setIsVerificationError] = useState(false);
+  const [attendanceData, setAttendanceData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchAttendance = async () => {
+      if (!user?.usn) return;
+      try {
+        setIsLoading(true);
+        const data = await getStudentAttendance(user.usn);
+        setAttendanceData(data);
+      } catch (error) {
+        console.error('Failed to fetch attendance:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchAttendance();
+  }, [user?.usn]);
 
   const scanLineAnim = React.useRef(new Animated.Value(0)).current;
 
@@ -125,12 +145,12 @@ export default function StudentProfileScreen() {
     return name ? name.split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase() : 'U';
   };
 
-  const subjects = [
-    { id: '1', name: 'DS', percentage: 80 },
-    { id: '2', name: 'DBMS', percentage: 60 },
-    { id: '3', name: 'OOPS', percentage: 45 },
-    { id: '4', name: 'OS', percentage: 78 },
-    { id: '5', name: 'CN', percentage: 72 },
+  const subjectsList = [
+    { id: 'dst', name: 'Data Structures' },
+    { id: 'dbm', name: 'Database Management' },
+    { id: 'oop', name: 'Object Oriented Programming' },
+    { id: 'ops', name: 'Operating Systems' },
+    { id: 'cns', name: 'Computer Networks' },
   ];
 
   const getBadgeColor = (percentage: number) => {
@@ -150,32 +170,39 @@ export default function StudentProfileScreen() {
             <Text style={styles.avatarText}>{getInitials(user?.name)}</Text>
           </View>
           <Text style={[styles.nameText, { color: colors.text }]}>{user?.name || 'Student Name'}</Text>
-          <Text style={[styles.emailText, { color: colors.subtext }]}>{user?.email || 'student@example.com'}</Text>
+          <Text style={[styles.emailText, { color: colors.subtext }]}>{user?.gender === 'M' ? 'Male' : 'Female'}</Text>
           <View style={[styles.enrollmentBadge, { backgroundColor: colors.card, borderColor: colors.border }]}>
-             <Text style={[styles.enrollmentText, { color: colors.primary }]}>EN2024001</Text>
+             <Text style={[styles.enrollmentText, { color: colors.primary }]}>{user?.usn || 'USN'}</Text>
           </View>
         </View>
 
         {/* Subjects List */}
         <View style={styles.subjectsContainer}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>My Subjects</Text>
-          {subjects.map((subject) => {
-            const subjectColors = getBadgeColor(subject.percentage);
+          {subjectsList.map((subject) => {
+            const stats = attendanceData?.[subject.id] || { percentage: 0 };
+            const percentage = stats.percentage;
+            const subjectColors = getBadgeColor(percentage);
+            
             return (
               <TouchableOpacity
                 key={subject.id}
                 style={[styles.subjectCard, { backgroundColor: colors.card, shadowColor: colors.primary }]}
-                onPress={() => router.push({ pathname: '/(student)/subject', params: { name: subject.name, percentage: subject.percentage } })}
+                onPress={() => router.push({ pathname: '/(student)/subject', params: { name: subject.name, percentage: percentage } })}
               >
                 <View style={[styles.subjectIcon, { backgroundColor: colors.inputBackground }]}>
                   <Text style={[styles.subjectIconText, { color: colors.primary }]}>{subject.name.substring(0, 1)}</Text>
                 </View>
-                <Text style={[styles.subjectName, { color: colors.text }]}>{subject.name}</Text>
-                <View style={[styles.badge, { backgroundColor: subjectColors.bg }]}>
-                  <Text style={[styles.badgeText, { color: subjectColors.text }]}>
-                    {subject.percentage}%
-                  </Text>
-                </View>
+                <Text style={[styles.subjectName, { color: colors.text }]} numberOfLines={1}>{subject.name}</Text>
+                {isLoading ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <View style={[styles.badge, { backgroundColor: subjectColors.bg }]}>
+                    <Text style={[styles.badgeText, { color: subjectColors.text }]}>
+                      {percentage}%
+                    </Text>
+                  </View>
+                )}
               </TouchableOpacity>
             );
           })}
