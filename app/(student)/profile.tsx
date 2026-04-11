@@ -8,11 +8,13 @@ import {
   SafeAreaView, 
   ScrollView,
   Animated,
-  Button,
   TouchableWithoutFeedback,
-  ActivityIndicator,
   Alert,
-  Linking
+  Linking,
+  Platform,
+  ActivityIndicator,
+  TextInput,
+  KeyboardAvoidingView
 } from 'react-native';
 import { useAuthStore } from '../../store/authStore';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -21,99 +23,9 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useStudentAttendanceStore } from '../../store/studentAttendanceStore';
+import generateAttendanceToken from '../../src/utils/tokenGenerator';
+import { getStudentAttendance, changePassword } from '../../src/services/api';
 
-function PulseRings({ isActive, color }: { isActive: boolean, color: string }) {
-  const ring1 = React.useRef(new Animated.Value(0)).current;
-  const ring2 = React.useRef(new Animated.Value(0)).current;
-  const ring3 = React.useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    let t1: ReturnType<typeof setTimeout>;
-    let t2: ReturnType<typeof setTimeout>;
-
-    if (isActive) {
-      const startAnim = (anim: Animated.Value) => {
-        anim.setValue(0);
-        Animated.loop(
-          Animated.timing(anim, {
-            toValue: 1,
-            duration: 1500,
-            useNativeDriver: true,
-          })
-        ).start();
-      };
-
-      startAnim(ring1);
-      t1 = setTimeout(() => startAnim(ring2), 500);
-      t2 = setTimeout(() => startAnim(ring3), 1000);
-
-      return () => {
-        clearTimeout(t1);
-        clearTimeout(t2);
-        ring1.stopAnimation();
-        ring2.stopAnimation();
-        ring3.stopAnimation();
-        ring1.setValue(0);
-        ring2.setValue(0);
-        ring3.setValue(0);
-      };
-    } else {
-      ring1.stopAnimation();
-      ring2.stopAnimation();
-      ring3.stopAnimation();
-      ring1.setValue(0);
-      ring2.setValue(0);
-      ring3.setValue(0);
-    }
-  }, [isActive, ring1, ring2, ring3]);
-
-  if (!isActive) return null;
-
-  const renderRing = (anim: Animated.Value) => (
-    <Animated.View
-      pointerEvents="none"
-      style={{
-        position: 'absolute',
-        width: 24,
-        height: 24,
-        borderRadius: 12,
-        backgroundColor: color,
-        opacity: anim.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0.6, 0],
-        }),
-        transform: [
-          {
-            scale: anim.interpolate({
-              inputRange: [0, 1],
-              outputRange: [1, 2.5],
-            }),
-          },
-        ],
-      }}
-    />
-  );
-
-  return (
-    <View 
-      pointerEvents="none" 
-      style={{ 
-        position: 'absolute', 
-        width: 120, 
-        height: 120, 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        overflow: 'hidden' 
-      }}
-    >
-      <View style={{ width: 24, height: 24, justifyContent: 'center', alignItems: 'center', overflow: 'visible' }}>
-        {renderRing(ring1)}
-        {renderRing(ring2)}
-        {renderRing(ring3)}
-      </View>
-    </View>
-  );
-}
 
 export default function StudentProfileScreen() {
   const { user, logout } = useAuthStore();
@@ -121,15 +33,42 @@ export default function StudentProfileScreen() {
   const router = useRouter();
 
   const {
-    qrScanned, bluetoothEnabled, beaconFound, attendanceSaved,
-    setQrScanned, setBluetoothEnabled, setBeaconFound, setAttendanceSaved, resetFlow
+    attendanceSaved,
+    setAttendanceSaved
   } = useStudentAttendanceStore();
 
   const [permission, requestPermission] = useCameraPermissions();
   const [isScannerVisible, setIsScannerVisible] = useState(false);
   
-  const [qrSuccessModalVisible, setQrSuccessModalVisible] = useState(false);
   const [attendanceSavedModalVisible, setAttendanceSavedModalVisible] = useState(false);
+  const [scannedToken, setScannedToken] = useState('');
+  const [isValidating, setIsValidating] = useState(false);
+  const [isVerificationError, setIsVerificationError] = useState(false);
+  const [attendanceData, setAttendanceData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Password state
+  const [isPasswordModalVisible, setIsPasswordModalVisible] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  useEffect(() => {
+    const fetchAttendance = async () => {
+      if (!user?.usn) return;
+      try {
+        setIsLoading(true);
+        const data = await getStudentAttendance(user.usn);
+        setAttendanceData(data);
+      } catch (error) {
+        console.error('Failed to fetch attendance:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchAttendance();
+  }, [user?.usn]);
 
   const scanLineAnim = React.useRef(new Animated.Value(0)).current;
 
@@ -155,6 +94,26 @@ export default function StudentProfileScreen() {
     }
   }, [isScannerVisible, scanLineAnim]);
 
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    if (isValidating) {
+      timer = setTimeout(() => {
+        // Verification logic
+        const currentToken = generateAttendanceToken();
+        const previousToken = generateAttendanceToken(new Date(Date.now() - 20000));
+        
+        if (scannedToken === currentToken || scannedToken === previousToken) {
+          setIsVerificationError(false);
+        } else {
+          setIsVerificationError(true);
+        }
+        
+        setIsValidating(false);
+      }, 1500);
+    }
+    return () => clearTimeout(timer);
+  }, [isValidating, scannedToken]);
+
 
 
   const handleScanQRCode = async () => {
@@ -177,53 +136,59 @@ export default function StudentProfileScreen() {
 
   const handleBarcodeScanned = ({ data }: { data: string }) => {
     setIsScannerVisible(false);
-    setQrScanned(true);
-    setQrSuccessModalVisible(true);
-  };
-
-  const handleEnableBluetoothFromPopup = () => {
-    setQrSuccessModalVisible(false);
-    setBluetoothEnabled(true);
-  };
-
-  const handleToggleBluetooth = () => {
-    if (!qrScanned) return;
-    const newState = !bluetoothEnabled;
-    setBluetoothEnabled(newState);
-    if (!newState) {
-       setBeaconFound(false);
-    }
+    setScannedToken(data);
+    setIsValidating(true);
+    setAttendanceSavedModalVisible(true);
   };
 
   const handleAttendanceSavedOK = () => {
     setAttendanceSavedModalVisible(false);
-    setAttendanceSaved(true);
-    setQrScanned(false);
-    setBluetoothEnabled(false);
-    setBeaconFound(false);
-  };
-
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>;
-    if (bluetoothEnabled && qrScanned && !beaconFound) {
-      timer = setTimeout(() => {
-        setBeaconFound(true);
-        setAttendanceSavedModalVisible(true);
-      }, 4000);
+    if (!isVerificationError) {
+      setAttendanceSaved(true);
     }
-    return () => clearTimeout(timer);
-  }, [bluetoothEnabled, qrScanned, beaconFound]);
+    // Reset error state for next scan
+    setTimeout(() => setIsVerificationError(false), 300);
+  };
 
   const getInitials = (name?: string) => {
     return name ? name.split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase() : 'U';
   };
 
-  const subjects = [
-    { id: '1', name: 'DS', percentage: 80 },
-    { id: '2', name: 'DBMS', percentage: 60 },
-    { id: '3', name: 'OOPS', percentage: 45 },
-    { id: '4', name: 'OS', percentage: 78 },
-    { id: '5', name: 'CN', percentage: 72 },
+  const handleChangePassword = async () => {
+    setPasswordError(null);
+    if (!currentPassword || !newPassword) {
+      setPasswordError('Please fill in both fields.');
+      return;
+    }
+    if (!/^\d{4,}$/.test(newPassword)) {
+      setPasswordError('New password must be at least 4 digits and only numbers.');
+      return;
+    }
+    if (currentPassword === newPassword) {
+      setPasswordError('New password cannot be the same as current password.');
+      return;
+    }
+    try {
+      setIsChangingPassword(true);
+      if (!user?.usn) throw new Error('User USN not found.');
+      await changePassword('student', user.usn, currentPassword, newPassword);
+      setIsPasswordModalVisible(false);
+      setCurrentPassword('');
+      setNewPassword('');
+      Alert.alert('Success', 'Password changed successfully!');
+    } catch (err: any) {
+      setPasswordError(err.message || 'Failed to change password.');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+  const subjectsList = [
+    { id: 'dst', name: 'Data Structures' },
+    { id: 'dbm', name: 'Database Management' },
+    { id: 'oop', name: 'Object Oriented Programming' },
+    { id: 'ops', name: 'Operating Systems' },
+    { id: 'cns', name: 'Computer Networks' },
   ];
 
   const getBadgeColor = (percentage: number) => {
@@ -243,32 +208,39 @@ export default function StudentProfileScreen() {
             <Text style={styles.avatarText}>{getInitials(user?.name)}</Text>
           </View>
           <Text style={[styles.nameText, { color: colors.text }]}>{user?.name || 'Student Name'}</Text>
-          <Text style={[styles.emailText, { color: colors.subtext }]}>{user?.email || 'student@example.com'}</Text>
+          <Text style={[styles.emailText, { color: colors.subtext }]}>{user?.gender === 'M' ? 'Male' : 'Female'}</Text>
           <View style={[styles.enrollmentBadge, { backgroundColor: colors.card, borderColor: colors.border }]}>
-             <Text style={[styles.enrollmentText, { color: colors.primary }]}>EN2024001</Text>
+             <Text style={[styles.enrollmentText, { color: colors.primary }]}>{user?.usn || 'USN'}</Text>
           </View>
         </View>
 
         {/* Subjects List */}
         <View style={styles.subjectsContainer}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>My Subjects</Text>
-          {subjects.map((subject) => {
-            const subjectColors = getBadgeColor(subject.percentage);
+          {subjectsList.map((subject) => {
+            const stats = attendanceData?.[subject.id] || { percentage: 0 };
+            const percentage = stats.percentage;
+            const subjectColors = getBadgeColor(percentage);
+            
             return (
               <TouchableOpacity
                 key={subject.id}
                 style={[styles.subjectCard, { backgroundColor: colors.card, shadowColor: colors.primary }]}
-                onPress={() => router.push({ pathname: '/(student)/subject', params: { name: subject.name, percentage: subject.percentage } })}
+                onPress={() => router.push({ pathname: '/(student)/subject', params: { name: subject.name, percentage: percentage, subjectId: subject.id } })}
               >
                 <View style={[styles.subjectIcon, { backgroundColor: colors.inputBackground }]}>
                   <Text style={[styles.subjectIconText, { color: colors.primary }]}>{subject.name.substring(0, 1)}</Text>
                 </View>
-                <Text style={[styles.subjectName, { color: colors.text }]}>{subject.name}</Text>
-                <View style={[styles.badge, { backgroundColor: subjectColors.bg }]}>
-                  <Text style={[styles.badgeText, { color: subjectColors.text }]}>
-                    {subject.percentage}%
-                  </Text>
-                </View>
+                <Text style={[styles.subjectName, { color: colors.text }]} numberOfLines={1}>{subject.name}</Text>
+                {isLoading ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <View style={[styles.badge, { backgroundColor: subjectColors.bg }]}>
+                    <Text style={[styles.badgeText, { color: subjectColors.text }]}>
+                      {percentage}%
+                    </Text>
+                  </View>
+                )}
               </TouchableOpacity>
             );
           })}
@@ -277,54 +249,12 @@ export default function StudentProfileScreen() {
         {/* Actions Section */}
         <View style={styles.actionsContainer}>
           <TouchableOpacity 
-            style={[
-              styles.primaryButton, 
-              qrScanned 
-                ? { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1.5, shadowOpacity: 0, elevation: 0, opacity: 0.5 }
-                : { backgroundColor: colors.primary, shadowColor: colors.primary }
-            ]} 
+            style={[styles.primaryButton, { backgroundColor: colors.primary, shadowColor: colors.primary }]} 
             onPress={handleScanQRCode}
-            disabled={qrScanned}
           >
-            <MaterialIcons name="qr-code-scanner" size={24} color={qrScanned ? colors.subtext : "#FFFFFF"} style={styles.btnIcon} />
-            <Text style={qrScanned ? [styles.secondaryButtonText, { color: colors.subtext }] : styles.primaryButtonText}>Scan Teacher QR</Text>
+            <MaterialIcons name="qr-code-scanner" size={24} color="#FFFFFF" style={styles.btnIcon} />
+            <Text style={styles.primaryButtonText}>Scan Teacher QR</Text>
           </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.primaryButton, 
-              bluetoothEnabled
-                ? { backgroundColor: colors.badgeGreen, shadowColor: colors.badgeGreen, borderWidth: 0 }
-                : (qrScanned
-                   ? { backgroundColor: colors.card, borderColor: colors.primary, borderWidth: 1.5, shadowOpacity: 0, elevation: 0 }
-                   : { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1.5, shadowOpacity: 0, elevation: 0, opacity: 0.5 })
-            ]}
-            onPress={handleToggleBluetooth}
-            disabled={!qrScanned}
-          >
-            <View style={{ width: 24, height: 24, justifyContent: 'center', alignItems: 'center', marginRight: 4 }}>
-              <PulseRings isActive={bluetoothEnabled && !beaconFound} color={colors.primary} />
-              <MaterialIcons 
-                name={bluetoothEnabled ? "bluetooth-connected" : "bluetooth"} 
-                size={24} 
-                color={bluetoothEnabled ? "#FFFFFF" : (qrScanned ? colors.primary : colors.subtext)} 
-              />
-            </View>
-            <Text style={
-              bluetoothEnabled
-                ? styles.primaryButtonText
-                : [styles.secondaryButtonText, { color: qrScanned ? colors.primary : colors.subtext }]
-            }>
-              {bluetoothEnabled ? 'Bluetooth Active' : 'Turn On Bluetooth'}
-            </Text>
-          </TouchableOpacity>
-          
-          {/* Status Line */}
-          {qrScanned && (
-            <Text style={{ textAlign: 'center', color: colors.subtext, marginTop: 5, fontSize: 13, fontWeight: '500' }}>
-              QR Scanned ✓  |  {beaconFound ? 'Beacon Found ✓' : (bluetoothEnabled ? 'Searching for beacon...' : 'Bluetooth Pending...')}
-            </Text>
-          )}
 
           {attendanceSaved && (
              <Text style={{ textAlign: 'center', color: colors.badgeGreen, marginTop: 5, fontSize: 14, fontWeight: 'bold' }}>
@@ -334,6 +264,15 @@ export default function StudentProfileScreen() {
         </View>
 
         <View style={styles.spacer} />
+        
+        {/* Change Password Button */}
+        <TouchableOpacity 
+          style={[styles.logoutButton, { backgroundColor: colors.card, borderColor: colors.border, marginBottom: 15 }]} 
+          onPress={() => setIsPasswordModalVisible(true)}
+        >
+          <MaterialIcons name="lock-outline" size={20} color={colors.text} style={styles.btnIcon} />
+          <Text style={[styles.logoutButtonText, { color: colors.text }]}>Change Password</Text>
+        </TouchableOpacity>
 
         {/* Logout Button */}
         <TouchableOpacity style={[styles.logoutButton, { backgroundColor: colors.badgeRed + '11', borderColor: colors.badgeRed + '44' }]} onPress={logout}>
@@ -386,28 +325,8 @@ export default function StudentProfileScreen() {
         </View>
       </Modal>
 
-      {/* QR Success Modal */}
-      <Modal
-        visible={qrSuccessModalVisible}
-        transparent={true}
-        animationType="fade"
-      >
-        <View style={styles.modalOverlay}>
-           <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-             <MaterialIcons name="qr-code-scanner" size={50} color={colors.badgeGreen} style={{ marginBottom: 15 }} />
-             <Text style={[styles.modalTitle, { color: colors.text }]}>QR Scan Complete!</Text>
-             <Text style={[styles.modalSubText, { color: colors.subtext }]}>Step 2: Turn on Bluetooth to verify your presence and save attendance.</Text>
-             <TouchableOpacity 
-               style={[styles.closeButton, { backgroundColor: colors.badgeGreen }]} 
-               onPress={handleEnableBluetoothFromPopup}
-             >
-               <Text style={styles.closeButtonText}>Enable Bluetooth</Text>
-             </TouchableOpacity>
-           </View>
-        </View>
-      </Modal>
 
-      {/* Attendance Marked Modal */}
+
       <Modal
         visible={attendanceSavedModalVisible}
         transparent={true}
@@ -415,16 +334,99 @@ export default function StudentProfileScreen() {
       >
         <View style={styles.modalOverlay}>
            <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-             <MaterialIcons name="check-circle" size={50} color={colors.badgeGreen} style={{ marginBottom: 15 }} />
-             <Text style={[styles.modalTitle, { color: colors.text }]}>Attendance Marked!</Text>
-             <Text style={[styles.modalSubText, { color: colors.subtext }]}>Both QR scan and Bluetooth verified. You have been marked present.</Text>
-             <TouchableOpacity 
-               style={[styles.closeButton, { backgroundColor: colors.primary }]} 
-               onPress={handleAttendanceSavedOK}
-             >
-               <Text style={styles.closeButtonText}>OK</Text>
-             </TouchableOpacity>
+             {isValidating ? (
+               <>
+                 <MaterialIcons name="qr-code" size={50} color={colors.primary} style={{ marginBottom: 15 }} />
+                 <Text style={[styles.modalTitle, { color: colors.text }]}>QR Scanned</Text>
+                 <View style={[styles.tokenContainer, { backgroundColor: colors.inputBackground }]}>
+                   <Text style={[styles.monospaceToken, { color: colors.text }]}>{scannedToken}</Text>
+                 </View>
+                 <Text style={[styles.modalSubText, { color: colors.subtext, marginTop: 10 }]}>Token received — verifying...</Text>
+               </>
+             ) : isVerificationError ? (
+               <>
+                 <MaterialIcons name="error-outline" size={50} color={colors.badgeRed} style={{ marginBottom: 15 }} />
+                 <Text style={[styles.modalTitle, { color: colors.text }]}>Invalid QR Code</Text>
+                 <Text style={[styles.modalSubText, { color: colors.subtext }]}>
+                   This QR code has expired or is not valid. Ask your teacher to show the QR code again.
+                 </Text>
+                 <TouchableOpacity 
+                   style={[styles.closeButton, { backgroundColor: colors.primary }]} 
+                   onPress={handleAttendanceSavedOK}
+                 >
+                   <Text style={styles.closeButtonText}>OK</Text>
+                 </TouchableOpacity>
+               </>
+             ) : (
+               <>
+                 <MaterialIcons name="check-circle" size={50} color={colors.badgeGreen} style={{ marginBottom: 15 }} />
+                 <Text style={[styles.modalTitle, { color: colors.text }]}>Attendance Marked!</Text>
+                 <Text style={[styles.modalSubText, { color: colors.subtext }]}>Token verified successfully.</Text>
+                 <TouchableOpacity 
+                   style={[styles.closeButton, { backgroundColor: colors.primary }]} 
+                   onPress={handleAttendanceSavedOK}
+                 >
+                   <Text style={styles.closeButtonText}>OK</Text>
+                 </TouchableOpacity>
+               </>
+             )}
            </View>
+        </View>
+      </Modal>
+
+      {/* Password Change Modal */}
+      <Modal
+        visible={isPasswordModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setIsPasswordModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%', alignItems: 'center' }}>
+            <View style={[styles.modalContent, { backgroundColor: colors.card, width: '90%' }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Change Password</Text>
+              
+              <View style={{ width: '100%', marginBottom: 15 }}>
+                <Text style={{ color: colors.text, marginBottom: 6, fontWeight: '600', fontSize: 14 }}>Current Password</Text>
+                <TextInput
+                  style={{ width: '100%', borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 12, color: colors.text, backgroundColor: colors.inputBackground }}
+                  secureTextEntry
+                  keyboardType="numeric"
+                  value={currentPassword}
+                  onChangeText={setCurrentPassword}
+                />
+              </View>
+
+              <View style={{ width: '100%', marginBottom: 15 }}>
+                <Text style={{ color: colors.text, marginBottom: 6, fontWeight: '600', fontSize: 14 }}>New Password <Text style={{fontWeight: 'normal', fontSize: 12, color: colors.subtext}}>(minimum 4 digits)</Text></Text>
+                <TextInput
+                  style={{ width: '100%', borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 12, color: colors.text, backgroundColor: colors.inputBackground }}
+                  secureTextEntry
+                  keyboardType="numeric"
+                  value={newPassword}
+                  onChangeText={(text) => { setNewPassword(text); setPasswordError(null); }}
+                />
+              </View>
+
+              {passwordError && <Text style={{ color: colors.badgeRed, marginBottom: 15, textAlign: 'center' }}>{passwordError}</Text>}
+
+              <View style={{ flexDirection: 'row', width: '100%', justifyContent: 'space-between' }}>
+                <TouchableOpacity 
+                  style={{ flex: 1, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.border, alignItems: 'center', marginRight: 10 }} 
+                  onPress={() => { setIsPasswordModalVisible(false); setCurrentPassword(''); setNewPassword(''); setPasswordError(null); }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: 'bold' }}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={{ flex: 1, padding: 12, borderRadius: 8, backgroundColor: colors.primary, alignItems: 'center' }} 
+                  onPress={handleChangePassword}
+                  disabled={isChangingPassword}
+                >
+                  {isChangingPassword ? <ActivityIndicator color="#FFF" /> : <Text style={{ color: '#FFF', fontWeight: 'bold' }}>Save</Text>}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -573,56 +575,6 @@ const styles = StyleSheet.create({
   btnIcon: {
     marginRight: 4,
   },
-  btPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 50,
-    marginBottom: 15,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-  },
-  btPillInactive: {
-    backgroundColor: '#E0E0E0',
-  },
-  btPillActive: {
-    backgroundColor: '#2196F3',
-    shadowColor: '#2196F3',
-    shadowOpacity: 0.3,
-  },
-  btIconPill: {
-    marginRight: 8,
-  },
-  btPillTextInactive: {
-    color: '#666',
-    fontWeight: 'bold',
-    fontSize: 14,
-  },
-  btPillTextActive: {
-    color: '#FFF',
-    fontWeight: 'bold',
-    fontSize: 14,
-  },
-  markPresentButton: {
-    flexDirection: 'row',
-    backgroundColor: '#4CAF50',
-    borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '100%',
-    shadowColor: '#4CAF50',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
-    elevation: 4,
-  },
   spacer: {
     flex: 1,
     minHeight: 30,
@@ -732,41 +684,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  secondaryButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginLeft: 10,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-  },
-  mockCamera: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  mockCameraText: {
-    color: '#666',
-    marginTop: 10,
-    fontSize: 16,
-  },
-  scannerOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  scannerFooter: {
-    padding: 20,
-    alignItems: 'center',
-  },
-  scannerInstructions: {
-    marginBottom: 15,
-    fontSize: 14,
-  },
   mockScanButton: {
     paddingVertical: 12,
     paddingHorizontal: 20,
@@ -779,37 +696,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  connectionModal: {
-    padding: 30,
-    borderRadius: 15,
-    alignItems: 'center',
-  },
-  connectionText: {
-    marginTop: 15,
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  toastContainer: {
-    position: 'absolute',
-    bottom: 40,
-    left: 20,
-    right: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 15,
+  tokenContainer: {
+    padding: 10,
     borderRadius: 8,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    marginBottom: 10,
+    width: '100%',
+    alignItems: 'center',
   },
-  toastIcon: {
-    marginRight: 10,
-  },
-  toastText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: '500',
+  monospaceToken: {
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    fontSize: 18,
+    fontWeight: 'bold',
+    letterSpacing: 2,
   },
 });

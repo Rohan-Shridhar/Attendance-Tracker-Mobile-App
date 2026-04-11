@@ -1,105 +1,45 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, SafeAreaView, ScrollView, TouchableWithoutFeedback, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, SafeAreaView, ScrollView, TouchableWithoutFeedback, Alert, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import { useAuthStore } from '../../store/authStore';
 import { MaterialIcons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
 import { useThemeStore } from '../../store/themeStore';
 import { useAttendanceStore } from '../../store/attendanceStore';
+import generateAttendanceToken, { getSecondsUntilNextToken } from '../../src/utils/tokenGenerator';
+import { getStudentCount, changePassword } from '../../src/services/api';
 
 export default function TeacherProfileScreen() {
   const { user, logout } = useAuthStore();
   const { colors } = useThemeStore();
   const { 
-    qrPhase, bluetoothPhase, scannedCount, connectedCount, 
-    setQrPhase, setBluetoothPhase, incrementScannedCount, incrementConnectedCount, resetFlow 
+    qrPhase, scannedCount, 
+    setQrPhase, incrementScannedCount, resetFlow 
   } = useAttendanceStore();
   const [isQRModalVisible, setIsQRModalVisible] = useState(false);
   const [isConfirmationVisible, setIsConfirmationVisible] = useState(false);
   const [showToast, setShowToast] = useState(false);
+  const [currentToken, setCurrentToken] = useState('');
+  const [secondsLeft, setSecondsLeft] = useState(0);
+  const [studentCount, setStudentCount] = useState(0);
 
-  const PulseRings = ({ isActive, color }: { isActive: boolean, color: string }) => {
-    const ring1 = React.useRef(new Animated.Value(0)).current;
-    const ring2 = React.useRef(new Animated.Value(0)).current;
-    const ring3 = React.useRef(new Animated.Value(0)).current;
+  // Password state
+  const [isPasswordModalVisible, setIsPasswordModalVisible] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
-    useEffect(() => {
-      if (isActive) {
-        const startAnim = (anim: Animated.Value) => {
-          anim.setValue(0);
-          Animated.loop(
-            Animated.timing(anim, {
-              toValue: 1,
-              duration: 1500,
-              useNativeDriver: true,
-            })
-          ).start();
-        };
-
-        startAnim(ring1);
-        const t1 = setTimeout(() => startAnim(ring2), 500);
-        const t2 = setTimeout(() => startAnim(ring3), 1000);
-
-        return () => {
-          clearTimeout(t1);
-          clearTimeout(t2);
-          ring1.stopAnimation();
-          ring2.stopAnimation();
-          ring3.stopAnimation();
-          ring1.setValue(0);
-          ring2.setValue(0);
-          ring3.setValue(0);
-        };
+  useEffect(() => {
+    const fetchStudentCount = async () => {
+      try {
+        const data = await getStudentCount();
+        setStudentCount(data.count);
+      } catch (error) {
+        console.error('Failed to fetch student count:', error);
       }
-    }, [isActive]);
-
-    if (!isActive) return null;
-
-    const renderRing = (anim: Animated.Value) => (
-      <Animated.View
-        pointerEvents="none"
-        style={{
-          position: 'absolute',
-          width: 24,
-          height: 24,
-          borderRadius: 12,
-          backgroundColor: color,
-          opacity: anim.interpolate({
-            inputRange: [0, 1],
-            outputRange: [0.6, 0],
-          }),
-          transform: [
-            {
-              scale: anim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [1, 2.5],
-              }),
-            },
-          ],
-        }}
-      />
-    );
-
-    return (
-      <View 
-        pointerEvents="none" 
-        style={{ 
-          position: 'absolute', 
-          width: 120, 
-          height: 120, 
-          justifyContent: 'center', 
-          alignItems: 'center', 
-          overflow: 'hidden' 
-        }}
-      >
-        <View style={{ width: 24, height: 24, justifyContent: 'center', alignItems: 'center', overflow: 'visible' }}>
-          {renderRing(ring1)}
-          {renderRing(ring2)}
-          {renderRing(ring3)}
-        </View>
-      </View>
-    );
-  };
-
+    };
+    fetchStudentCount();
+  }, []);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
@@ -112,14 +52,31 @@ export default function TeacherProfileScreen() {
   }, [isQRModalVisible, scannedCount, incrementScannedCount]);
 
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>;
-    if (bluetoothPhase && connectedCount < scannedCount) {
-      timer = setTimeout(() => {
-        incrementConnectedCount();
+    let interval: ReturnType<typeof setInterval>;
+
+    if (isQRModalVisible) {
+      // Initial generation
+      setCurrentToken(generateAttendanceToken());
+      const initialSeconds = getSecondsUntilNextToken();
+      setSecondsLeft(initialSeconds);
+
+      interval = setInterval(() => {
+        setSecondsLeft((prev) => {
+          if (prev <= 1) {
+            setCurrentToken(generateAttendanceToken());
+            return 20;
+          }
+          return prev - 1;
+        });
       }, 1000);
     }
-    return () => clearTimeout(timer);
-  }, [bluetoothPhase, connectedCount, scannedCount, incrementConnectedCount]);
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isQRModalVisible]);
+
+
 
   const handleSaveAttendance = () => {
     setIsConfirmationVisible(false);
@@ -140,6 +97,35 @@ export default function TeacherProfileScreen() {
     return name ? name.split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase() : 'U';
   };
 
+  const handleChangePassword = async () => {
+    setPasswordError(null);
+    if (!currentPassword || !newPassword) {
+      setPasswordError('Please fill in both fields.');
+      return;
+    }
+    if (!/^\d{4,}$/.test(newPassword)) {
+      setPasswordError('New password must be at least 4 digits and only numbers.');
+      return;
+    }
+    if (currentPassword === newPassword) {
+      setPasswordError('New password cannot be the same as current password.');
+      return;
+    }
+    try {
+      setIsChangingPassword(true);
+      if (!user?.email) throw new Error('User email not found.');
+      await changePassword('teacher', user.email, currentPassword, newPassword);
+      setIsPasswordModalVisible(false);
+      setCurrentPassword('');
+      setNewPassword('');
+      Alert.alert('Success', 'Password changed successfully!');
+    } catch (err: any) {
+      setPasswordError(err.message || 'Failed to change password.');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -152,19 +138,14 @@ export default function TeacherProfileScreen() {
           <Text style={[styles.nameText, { color: colors.text }]}>{user?.name || 'Teacher Name'}</Text>
           <Text style={[styles.emailText, { color: colors.subtext }]}>{user?.email || 'teacher@example.com'}</Text>
           <View style={[styles.departmentBadge, { backgroundColor: colors.inputBackground }]}>
-             <Text style={[styles.departmentText, { color: colors.primary }]}>Computer Science</Text>
+             <Text style={[styles.departmentText, { color: colors.primary }]}>{user?.subject || 'Subject'}</Text>
           </View>
         </View>
 
         {/* Stats Card */}
         <View style={[styles.statsCard, { backgroundColor: colors.card, shadowColor: '#000' }]}>
           <View style={styles.statBox}>
-            <Text style={[styles.statNumber, { color: colors.primary }]}>3</Text>
-            <Text style={[styles.statLabel, { color: colors.subtext }]}>Classes Today</Text>
-          </View>
-          <View style={[styles.divider, { backgroundColor: colors.border }]} />
-          <View style={styles.statBox}>
-            <Text style={[styles.statNumber, { color: colors.primary }]}>145</Text>
+            <Text style={[styles.statNumber, { color: colors.primary }]}>{studentCount}</Text>
             <Text style={[styles.statLabel, { color: colors.subtext }]}>Total Students</Text>
           </View>
         </View>
@@ -187,61 +168,34 @@ export default function TeacherProfileScreen() {
           </TouchableOpacity>
 
           {!qrPhase && (
-            <Text style={{ textAlign: 'center', color: colors.subtext, marginBottom: 15, fontSize: 14, fontWeight: '500' }}>
-              {scannedCount} students have scanned
-            </Text>
-          )}
-
-          <TouchableOpacity 
-            style={[
-              styles.primaryButton, 
-              bluetoothPhase 
-                ? { backgroundColor: colors.badgeGreen, shadowColor: colors.badgeGreen } 
-                : (!qrPhase 
-                    ? { backgroundColor: colors.card, borderColor: colors.primary, borderWidth: 1.5, shadowOpacity: 0, elevation: 0 } 
-                    : { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1.5, opacity: 0.5, shadowOpacity: 0, elevation: 0 })
-            ]} 
-            onPress={() => setBluetoothPhase(!bluetoothPhase)}
-            disabled={qrPhase}
-          >
-            <View style={{ width: 24, height: 24, justifyContent: 'center', alignItems: 'center', marginRight: 4 }}>
-              <PulseRings isActive={bluetoothPhase} color={colors.primary} />
-              <MaterialIcons 
-                name={bluetoothPhase ? "bluetooth-connected" : "bluetooth"} 
-                size={24} 
-                color={bluetoothPhase ? "#FFFFFF" : (!qrPhase ? colors.primary : colors.subtext)} 
-              />
-            </View>
-            <Text style={
-              bluetoothPhase 
-                ? styles.primaryButtonText 
-                : [styles.secondaryButtonText, { color: !qrPhase ? colors.primary : colors.subtext }]
-            }>
-              {bluetoothPhase 
-                ? 'Beacon Active' 
-                : (!qrPhase ? 'Turn On Bluetooth Beacon' : 'Bluetooth (Locked)')}
-            </Text>
-          </TouchableOpacity>
-
-          {bluetoothPhase && (
-            <View style={[styles.beaconCard, { backgroundColor: colors.inputBackground }]}>
-              <Text style={[styles.beaconText, { color: colors.primary }]}>{connectedCount} students connected</Text>
-              
-              {connectedCount === scannedCount && scannedCount > 0 && (
-                <Text style={{ color: colors.badgeGreen, fontSize: 12, fontWeight: 'bold', marginBottom: 10, textAlign: 'center' }}>All scanned students connected — ready to save!</Text>
-              )}
+            <View style={{ width: '100%', alignItems: 'center' }}>
+              <Text style={{ textAlign: 'center', color: colors.subtext, marginBottom: 15, fontSize: 14, fontWeight: '500' }}>
+                {scannedCount} students have scanned
+              </Text>
 
               <TouchableOpacity 
-                style={[styles.saveAttendanceBtn, { backgroundColor: colors.badgeGreen }]}
+                style={[styles.primaryButton, { backgroundColor: colors.badgeGreen, shadowColor: colors.badgeGreen, width: '100%' }]}
                 onPress={() => setIsConfirmationVisible(true)}
               >
-                <Text style={styles.saveAttendanceBtnText}>Save Attendance</Text>
+                <MaterialIcons name="check-circle" size={24} color="#FFFFFF" style={styles.btnIcon} />
+                <Text style={styles.primaryButtonText}>Save Attendance</Text>
               </TouchableOpacity>
             </View>
           )}
         </View>
         
         <View style={styles.spacer} />
+
+        <View style={styles.spacer} />
+
+        {/* Change Password Button */}
+        <TouchableOpacity 
+          style={[styles.logoutButton, { backgroundColor: colors.card, borderColor: colors.border, marginBottom: 15 }]} 
+          onPress={() => setIsPasswordModalVisible(true)}
+        >
+          <MaterialIcons name="lock-outline" size={20} color={colors.text} style={styles.btnIcon} />
+          <Text style={[styles.logoutButtonText, { color: colors.text }]}>Change Password</Text>
+        </TouchableOpacity>
 
         {/* Logout Button */}
         <TouchableOpacity style={[styles.logoutButton, { backgroundColor: colors.badgeRed + '15', borderColor: colors.badgeRed + '40' }]} onPress={logout}>
@@ -267,13 +221,22 @@ export default function TeacherProfileScreen() {
             <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
             <Text style={[styles.modalTitle, { color: colors.text }]}>Scan for Attendance</Text>
             
-            <View style={[styles.qrContainer, { backgroundColor: '#FFFFFF', borderColor: colors.border }]}>
+            <View style={[styles.qrContainer, { backgroundColor: '#FFFFFF', borderColor: colors.border, paddingBottom: 10 }]}>
               <QRCode
-                value="SESSION-MOCK-001"
+                value={currentToken || 'INITIALIZING'}
                 size={220}
                 color="#1F3864"
                 backgroundColor="#FFFFFF"
               />
+              <Text style={{ 
+                marginTop: 15, 
+                textAlign: 'center', 
+                color: colors.subtext, 
+                fontSize: 14, 
+                fontWeight: '600' 
+              }}>
+                Refreshes in {secondsLeft}s
+              </Text>
             </View>
             
             <Text style={[styles.modalSubText, { color: colors.subtext }]}>{scannedCount} students have scanned</Text>
@@ -299,7 +262,7 @@ export default function TeacherProfileScreen() {
         <View style={styles.modalOverlay}>
           <View style={[styles.confirmModalContent, { backgroundColor: colors.card }]}>
             <Text style={[styles.confirmModalTitle, { color: colors.text }]}>Confirm Attendance</Text>
-            <Text style={[styles.confirmModalText, { color: colors.subtext }]}>{connectedCount} students will be marked present</Text>
+            <Text style={[styles.confirmModalText, { color: colors.subtext }]}>{scannedCount} students will be marked present</Text>
             
             <View style={styles.confirmButtonRow}>
               <TouchableOpacity 
@@ -325,6 +288,62 @@ export default function TeacherProfileScreen() {
           <Text style={styles.toastText}>Attendance Saved!</Text>
         </View>
       )}
+
+      {/* Password Change Modal */}
+      <Modal
+        visible={isPasswordModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setIsPasswordModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%', alignItems: 'center' }}>
+            <View style={[styles.modalContent, { backgroundColor: colors.card, width: '90%' }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Change Password</Text>
+              
+              <View style={{ width: '100%', marginBottom: 15 }}>
+                <Text style={{ color: colors.text, marginBottom: 6, fontWeight: '600', fontSize: 14 }}>Current Password</Text>
+                <TextInput
+                  style={{ width: '100%', borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 12, color: colors.text, backgroundColor: colors.inputBackground }}
+                  secureTextEntry
+                  keyboardType="numeric"
+                  value={currentPassword}
+                  onChangeText={setCurrentPassword}
+                />
+              </View>
+
+              <View style={{ width: '100%', marginBottom: 15 }}>
+                <Text style={{ color: colors.text, marginBottom: 6, fontWeight: '600', fontSize: 14 }}>New Password <Text style={{fontWeight: 'normal', fontSize: 12, color: colors.subtext}}>(minimum 4 digits)</Text></Text>
+                <TextInput
+                  style={{ width: '100%', borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 12, color: colors.text, backgroundColor: colors.inputBackground }}
+                  secureTextEntry
+                  keyboardType="numeric"
+                  value={newPassword}
+                  onChangeText={(text) => { setNewPassword(text); setPasswordError(null); }}
+                />
+              </View>
+
+              {passwordError && <Text style={{ color: colors.badgeRed, marginBottom: 15, textAlign: 'center' }}>{passwordError}</Text>}
+
+              <View style={{ flexDirection: 'row', width: '100%', justifyContent: 'space-between' }}>
+                <TouchableOpacity 
+                  style={{ flex: 1, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.border, alignItems: 'center', marginRight: 10 }} 
+                  onPress={() => { setIsPasswordModalVisible(false); setCurrentPassword(''); setNewPassword(''); setPasswordError(null); }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: 'bold' }}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={{ flex: 1, padding: 12, borderRadius: 8, backgroundColor: colors.primary, alignItems: 'center' }} 
+                  onPress={handleChangePassword}
+                  disabled={isChangingPassword}
+                >
+                  {isChangingPassword ? <ActivityIndicator color="#FFF" /> : <Text style={{ color: '#FFF', fontWeight: 'bold' }}>Save</Text>}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
 
     </SafeAreaView>
   );
@@ -443,17 +462,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginLeft: 10,
   },
-  beaconOffBtn: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.5,
-    borderColor: '#1F3864',
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  beaconActiveBtn: {
-    backgroundColor: '#4CAF50', // Green for active status
-    shadowColor: '#4CAF50',
-  },
   secondaryButtonText: {
     color: '#1F3864',
     fontSize: 16,
@@ -537,33 +545,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  beaconCard: {
-    backgroundColor: '#E8EDF5',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    marginTop: 5,
-    marginBottom: 15,
-  },
-  beaconText: {
-    fontSize: 16,
-    color: '#1F3864',
-    fontWeight: '600',
-    marginBottom: 12,
-  },
-  saveAttendanceBtn: {
-    backgroundColor: '#4CAF50',
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    width: '100%',
-    alignItems: 'center',
-  },
-  saveAttendanceBtnText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: 'bold',
-  },
+
   confirmModalContent: {
     width: '85%',
     backgroundColor: '#FFFFFF',
