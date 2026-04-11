@@ -10,7 +10,8 @@ import {
   Animated,
   TouchableWithoutFeedback,
   Alert,
-  Linking
+  Linking,
+  Platform
 } from 'react-native';
 import { useAuthStore } from '../../store/authStore';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -19,6 +20,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useStudentAttendanceStore } from '../../store/studentAttendanceStore';
+import generateAttendanceToken from '../../src/utils/tokenGenerator';
 
 
 export default function StudentProfileScreen() {
@@ -35,6 +37,9 @@ export default function StudentProfileScreen() {
   const [isScannerVisible, setIsScannerVisible] = useState(false);
   
   const [attendanceSavedModalVisible, setAttendanceSavedModalVisible] = useState(false);
+  const [scannedToken, setScannedToken] = useState('');
+  const [isValidating, setIsValidating] = useState(false);
+  const [isVerificationError, setIsVerificationError] = useState(false);
 
   const scanLineAnim = React.useRef(new Animated.Value(0)).current;
 
@@ -60,6 +65,26 @@ export default function StudentProfileScreen() {
     }
   }, [isScannerVisible, scanLineAnim]);
 
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    if (isValidating) {
+      timer = setTimeout(() => {
+        // Verification logic
+        const currentToken = generateAttendanceToken();
+        const previousToken = generateAttendanceToken(new Date(Date.now() - 20000));
+        
+        if (scannedToken === currentToken || scannedToken === previousToken) {
+          setIsVerificationError(false);
+        } else {
+          setIsVerificationError(true);
+        }
+        
+        setIsValidating(false);
+      }, 1500);
+    }
+    return () => clearTimeout(timer);
+  }, [isValidating, scannedToken]);
+
 
 
   const handleScanQRCode = async () => {
@@ -82,12 +107,18 @@ export default function StudentProfileScreen() {
 
   const handleBarcodeScanned = ({ data }: { data: string }) => {
     setIsScannerVisible(false);
+    setScannedToken(data);
+    setIsValidating(true);
     setAttendanceSavedModalVisible(true);
   };
 
   const handleAttendanceSavedOK = () => {
     setAttendanceSavedModalVisible(false);
-    setAttendanceSaved(true);
+    if (!isVerificationError) {
+      setAttendanceSaved(true);
+    }
+    // Reset error state for next scan
+    setTimeout(() => setIsVerificationError(false), 300);
   };
 
   const getInitials = (name?: string) => {
@@ -221,7 +252,6 @@ export default function StudentProfileScreen() {
 
 
 
-      {/* Attendance Marked Modal */}
       <Modal
         visible={attendanceSavedModalVisible}
         transparent={true}
@@ -229,15 +259,42 @@ export default function StudentProfileScreen() {
       >
         <View style={styles.modalOverlay}>
            <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-             <MaterialIcons name="check-circle" size={50} color={colors.badgeGreen} style={{ marginBottom: 15 }} />
-             <Text style={[styles.modalTitle, { color: colors.text }]}>Attendance Marked!</Text>
-             <Text style={[styles.modalSubText, { color: colors.subtext }]}>Your QR scan has been verified. You have been marked present.</Text>
-             <TouchableOpacity 
-               style={[styles.closeButton, { backgroundColor: colors.primary }]} 
-               onPress={handleAttendanceSavedOK}
-             >
-               <Text style={styles.closeButtonText}>OK</Text>
-             </TouchableOpacity>
+             {isValidating ? (
+               <>
+                 <MaterialIcons name="qr-code" size={50} color={colors.primary} style={{ marginBottom: 15 }} />
+                 <Text style={[styles.modalTitle, { color: colors.text }]}>QR Scanned</Text>
+                 <View style={[styles.tokenContainer, { backgroundColor: colors.inputBackground }]}>
+                   <Text style={[styles.monospaceToken, { color: colors.text }]}>{scannedToken}</Text>
+                 </View>
+                 <Text style={[styles.modalSubText, { color: colors.subtext, marginTop: 10 }]}>Token received — verifying...</Text>
+               </>
+             ) : isVerificationError ? (
+               <>
+                 <MaterialIcons name="error-outline" size={50} color={colors.badgeRed} style={{ marginBottom: 15 }} />
+                 <Text style={[styles.modalTitle, { color: colors.text }]}>Invalid QR Code</Text>
+                 <Text style={[styles.modalSubText, { color: colors.subtext }]}>
+                   This QR code has expired or is not valid. Ask your teacher to show the QR code again.
+                 </Text>
+                 <TouchableOpacity 
+                   style={[styles.closeButton, { backgroundColor: colors.primary }]} 
+                   onPress={handleAttendanceSavedOK}
+                 >
+                   <Text style={styles.closeButtonText}>OK</Text>
+                 </TouchableOpacity>
+               </>
+             ) : (
+               <>
+                 <MaterialIcons name="check-circle" size={50} color={colors.badgeGreen} style={{ marginBottom: 15 }} />
+                 <Text style={[styles.modalTitle, { color: colors.text }]}>Attendance Marked!</Text>
+                 <Text style={[styles.modalSubText, { color: colors.subtext }]}>Token verified successfully.</Text>
+                 <TouchableOpacity 
+                   style={[styles.closeButton, { backgroundColor: colors.primary }]} 
+                   onPress={handleAttendanceSavedOK}
+                 >
+                   <Text style={styles.closeButtonText}>OK</Text>
+                 </TouchableOpacity>
+               </>
+             )}
            </View>
         </View>
       </Modal>
@@ -507,5 +564,18 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  tokenContainer: {
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 10,
+    width: '100%',
+    alignItems: 'center',
+  },
+  monospaceToken: {
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    fontSize: 18,
+    fontWeight: 'bold',
+    letterSpacing: 2,
   },
 });

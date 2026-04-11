@@ -12,8 +12,16 @@ export default function RootLayout() {
   const { isDarkMode, colors, toggleTheme } = useThemeStore();
   const segments = useSegments();
   const router = useRouter();
+  const [isNavigationReady, setIsNavigationReady] = useState(false);
   
   useEffect(() => {
+    // Set navigation as ready after the first layout render
+    setIsNavigationReady(true);
+  }, []);
+  
+  useEffect(() => {
+    if (!isNavigationReady) return;
+
     const currentSegment = segments[0] as string | undefined;
     const inTeacherGroup = currentSegment === '(teacher)';
     const inStudentGroup = currentSegment === '(student)';
@@ -29,7 +37,7 @@ export default function RootLayout() {
         router.replace('/(student)/profile' as any);
       }
     }
-  }, [isLoggedIn, segments, user, router]);
+  }, [isLoggedIn, segments, user, router, isNavigationReady]);
 
 
 

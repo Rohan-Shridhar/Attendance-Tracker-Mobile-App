@@ -5,6 +5,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
 import { useThemeStore } from '../../store/themeStore';
 import { useAttendanceStore } from '../../store/attendanceStore';
+import generateAttendanceToken, { getSecondsUntilNextToken } from '../../src/utils/tokenGenerator';
 
 export default function TeacherProfileScreen() {
   const { user, logout } = useAuthStore();
@@ -16,6 +17,8 @@ export default function TeacherProfileScreen() {
   const [isQRModalVisible, setIsQRModalVisible] = useState(false);
   const [isConfirmationVisible, setIsConfirmationVisible] = useState(false);
   const [showToast, setShowToast] = useState(false);
+  const [currentToken, setCurrentToken] = useState('');
+  const [secondsLeft, setSecondsLeft] = useState(0);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
@@ -26,6 +29,31 @@ export default function TeacherProfileScreen() {
     }
     return () => clearTimeout(timer);
   }, [isQRModalVisible, scannedCount, incrementScannedCount]);
+
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval>;
+
+    if (isQRModalVisible) {
+      // Initial generation
+      setCurrentToken(generateAttendanceToken());
+      const initialSeconds = getSecondsUntilNextToken();
+      setSecondsLeft(initialSeconds);
+
+      interval = setInterval(() => {
+        setSecondsLeft((prev) => {
+          if (prev <= 1) {
+            setCurrentToken(generateAttendanceToken());
+            return 20;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isQRModalVisible]);
 
 
 
@@ -137,13 +165,22 @@ export default function TeacherProfileScreen() {
             <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
             <Text style={[styles.modalTitle, { color: colors.text }]}>Scan for Attendance</Text>
             
-            <View style={[styles.qrContainer, { backgroundColor: '#FFFFFF', borderColor: colors.border }]}>
+            <View style={[styles.qrContainer, { backgroundColor: '#FFFFFF', borderColor: colors.border, paddingBottom: 10 }]}>
               <QRCode
-                value="SESSION-MOCK-001"
+                value={currentToken || 'INITIALIZING'}
                 size={220}
                 color="#1F3864"
                 backgroundColor="#FFFFFF"
               />
+              <Text style={{ 
+                marginTop: 15, 
+                textAlign: 'center', 
+                color: colors.subtext, 
+                fontSize: 14, 
+                fontWeight: '600' 
+              }}>
+                Refreshes in {secondsLeft}s
+              </Text>
             </View>
             
             <Text style={[styles.modalSubText, { color: colors.subtext }]}>{scannedCount} students have scanned</Text>
