@@ -27,7 +27,7 @@ export default function RootLayout() {
     const inStudentGroup = currentSegment === '(student)';
 
     if (!isLoggedIn) {
-      if (currentSegment !== 'landing' && currentSegment !== 'login') {
+      if (currentSegment !== 'landing' && currentSegment !== 'student-login' && currentSegment !== 'teacher-login') {
         router.replace('/landing' as any);
       }
     } else if (isLoggedIn) {
@@ -45,7 +45,8 @@ export default function RootLayout() {
     <>
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
         <Stack.Screen name="landing" />
-        <Stack.Screen name="login" />
+        <Stack.Screen name="student-login" />
+        <Stack.Screen name="teacher-login" />
         <Stack.Screen name="(teacher)" />
         <Stack.Screen name="(student)" />
         <Stack.Screen name="modal" options={{ 
