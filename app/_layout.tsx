@@ -13,25 +13,14 @@ export default function RootLayout() {
   const segments = useSegments();
   const router = useRouter();
   
-  const [isReady, setIsReady] = useState(false);
-
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsReady(true);
-    }, 1500);
-    return () => clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    if (!isReady) return;
-
     const currentSegment = segments[0] as string | undefined;
     const inTeacherGroup = currentSegment === '(teacher)';
     const inStudentGroup = currentSegment === '(student)';
 
     if (!isLoggedIn) {
-      if (currentSegment !== 'login') {
-        router.replace('/login' as any);
+      if (currentSegment !== 'landing' && currentSegment !== 'login') {
+        router.replace('/landing' as any);
       }
     } else if (isLoggedIn) {
       if (user?.role === 'teacher' && !inTeacherGroup) {
@@ -40,19 +29,14 @@ export default function RootLayout() {
         router.replace('/(student)/profile' as any);
       }
     }
-  }, [isLoggedIn, segments, user, router, isReady]);
+  }, [isLoggedIn, segments, user, router]);
 
-  if (!isReady) {
-    return (
-      <View style={{ flex: 1, backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }}>
-        <Text style={{ fontSize: 48, fontWeight: 'bold', color: colors.primary, letterSpacing: -1 }}>AttendX</Text>
-      </View>
-    );
-  }
+
 
   return (
     <>
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
+        <Stack.Screen name="landing" />
         <Stack.Screen name="login" />
         <Stack.Screen name="(teacher)" />
         <Stack.Screen name="(student)" />

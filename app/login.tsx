@@ -10,6 +10,7 @@ import {
   SafeAreaView 
 } from 'react-native';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
 
@@ -21,6 +22,7 @@ export default function LoginScreen() {
 
   const login = useAuthStore((state) => state.login);
   const { colors, isDarkMode, toggleTheme } = useThemeStore();
+  const router = useRouter();
 
   const handleLogin = () => {
     setErrorVisible(false);
@@ -33,6 +35,10 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
+      <TouchableOpacity onPress={() => router.replace('/landing')} style={styles.backButton}>
+        <Ionicons name="arrow-back" size={28} color={colors.text} />
+      </TouchableOpacity>
+      
       <TouchableOpacity onPress={toggleTheme} style={styles.themeToggle}>
         <Ionicons name={isDarkMode ? 'sunny-outline' : 'moon-outline'} size={28} color={colors.text} />
       </TouchableOpacity>
@@ -113,6 +119,13 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: Platform.OS === 'ios' ? 60 : 40,
     right: 20,
+    zIndex: 10,
+    padding: 10,
+  },
+  backButton: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 60 : 40,
+    left: 20,
     zIndex: 10,
     padding: 10,
   },
