@@ -66,7 +66,7 @@ export default function TeacherStudentsScreen() {
       if (sortType === 'name') {
         return a.name.localeCompare(b.name);
       } else {
-        return b.percentage - a.percentage; // High to low for attendance
+        return a.percentage - b.percentage; // Low to high for attendance
       }
     });
 
@@ -122,7 +122,6 @@ export default function TeacherStudentsScreen() {
             {item.percentage}%
           </Text>
         </View>
-        <MaterialIcons name="chevron-right" size={24} color={colors.subtext} />
       </View>
     </TouchableOpacity>
   );

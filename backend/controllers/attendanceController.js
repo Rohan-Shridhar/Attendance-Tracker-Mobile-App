@@ -102,7 +102,40 @@ const getClassAttendance = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Get detailed attendance timeline (dates) for a specific student and subject
+ * @route   GET /api/attendance/student/:usn/:subject_id
+ * @access  Public (for now)
+ */
+const getSubjectDetail = async (req, res) => {
+  const { usn, subject_id } = req.params;
+  // subject_id might be "23CS4PCDST" or just "dst"
+  const collectionName = subject_id.slice(-3).toLowerCase();
+
+  try {
+    const Attendance = getAttendanceModel(collectionName);
+    const records = await Attendance.find({});
+    
+    const history = [];
+    records.forEach(doc => {
+      const status = doc.get(usn);
+      if (status !== undefined && status !== null && doc.date) {
+        history.push({
+          id: doc._id?.toString() || Math.random().toString(),
+          date: doc.date,
+          isPresent: status === "Present"
+        });
+      }
+    });
+
+    res.status(200).json(history);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   getStudentAttendance,
   getClassAttendance,
+  getSubjectDetail,
 };

@@ -83,3 +83,18 @@ export const getClassAttendance = async (subjectId) => {
   });
   return handleResponse(response);
 };
+
+/**
+ * Get detailed attendance timeline for a specific student and subject
+ * @param {string} usn
+ * @param {string} subjectId 
+ */
+export const getSubjectDetail = async (usn, subjectId) => {
+  const response = await fetch(`${BASE_URL}/attendance/student/${usn}/${subjectId}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+  return handleResponse(response);
+};

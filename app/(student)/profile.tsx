@@ -188,7 +188,7 @@ export default function StudentProfileScreen() {
               <TouchableOpacity
                 key={subject.id}
                 style={[styles.subjectCard, { backgroundColor: colors.card, shadowColor: colors.primary }]}
-                onPress={() => router.push({ pathname: '/(student)/subject', params: { name: subject.name, percentage: percentage } })}
+                onPress={() => router.push({ pathname: '/(student)/subject', params: { name: subject.name, percentage: percentage, subjectId: subject.id } })}
               >
                 <View style={[styles.subjectIcon, { backgroundColor: colors.inputBackground }]}>
                   <Text style={[styles.subjectIconText, { color: colors.primary }]}>{subject.name.substring(0, 1)}</Text>
