@@ -1,9 +1,16 @@
-import { ActivityIndicator, View } from 'react-native';
+import { Redirect } from 'expo-router';
+import { useAuthStore } from '../store/authStore';
 
 export default function IndexScreen() {
-  return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-      <ActivityIndicator size="large" />
-    </View>
-  );
+  const { isLoggedIn, user } = useAuthStore();
+
+  if (!isLoggedIn) {
+    return <Redirect href="/landing" />;
+  }
+
+  if (user?.role === 'teacher') {
+    return <Redirect href="/(teacher)/profile" />;
+  }
+
+  return <Redirect href="/(student)/profile" />;
 }
