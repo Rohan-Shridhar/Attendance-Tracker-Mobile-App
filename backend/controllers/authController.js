@@ -55,7 +55,7 @@ const studentLogin = async (req, res) => {
 // @route   POST /api/auth/teacher-login
 // @access  Public
 const teacherLogin = async (req, res) => {
-  const { email } = req.body;
+  const { email, password } = req.body;
 
   try {
     // Normalize email for case-insensitive lookup
@@ -65,6 +65,11 @@ const teacherLogin = async (req, res) => {
 
     if (!teacher) {
       return res.status(404).json({ message: 'Teacher not found' });
+    }
+
+    // Passwords in DB are Number (Int32), req body password might be string
+    if (Number(password) !== teacher.password) {
+      return res.status(401).json({ message: 'Invalid password' });
     }
 
     res.status(200).json({

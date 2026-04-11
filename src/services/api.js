@@ -30,14 +30,15 @@ export const studentLogin = async (usn, password) => {
 /**
  * Teacher Login API
  * @param {string} email 
+ * @param {string} password
  */
-export const teacherLogin = async (email) => {
+export const teacherLogin = async (email, password) => {
   const response = await fetch(`${BASE_URL}/auth/teacher-login`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email, password }),
   });
   return handleResponse(response);
 };
