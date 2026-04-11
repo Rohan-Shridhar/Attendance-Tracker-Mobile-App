@@ -1,36 +1,36 @@
-import React from 'react';
-import { View, Text, StyleSheet, FlatList, SafeAreaView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, FlatList, SafeAreaView, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useThemeStore } from '../../store/themeStore';
-
-// Mock data generator
-const generateMockRecords = () => {
-  const records = [];
-  const dates = [
-    'Mon, 10 Mar 2025', 'Fri, 07 Mar 2025', 'Wed, 05 Mar 2025',
-    'Mon, 03 Mar 2025', 'Fri, 28 Feb 2025', 'Wed, 26 Feb 2025',
-    'Mon, 24 Feb 2025', 'Fri, 21 Feb 2025', 'Wed, 19 Feb 2025',
-    'Mon, 17 Feb 2025'
-  ];
-  
-  // Mixed present/absent
-  const statuses = [true, true, false, true, true, false, true, true, true, false];
-  
-  for (let i = 0; i < 10; i++) {
-    records.push({
-      id: i.toString(),
-      date: dates[i],
-      isPresent: statuses[i]
-    });
-  }
-  return records;
-};
+import { useAuthStore } from '../../store/authStore';
+import { getSubjectDetail } from '../../src/services/api';
 
 export default function SubjectDetailScreen() {
-  const { name, percentage } = useLocalSearchParams<{ name: string; percentage: string }>();
-  const records = React.useMemo(() => generateMockRecords(), []);
+  const { name, percentage, subjectId } = useLocalSearchParams<{ name: string; percentage: string; subjectId: string; }>();
+  const [records, setRecords] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  const { user } = useAuthStore();
   const { colors } = useThemeStore();
+
+  useEffect(() => {
+    const fetchHistory = async () => {
+      if (!user?.usn || !subjectId) return;
+      try {
+        setIsLoading(true);
+        setError(null);
+        const data = await getSubjectDetail(user.usn, subjectId);
+        setRecords(data);
+      } catch (err: any) {
+        setError(err.message || 'Failed to fetch attendance history');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchHistory();
+  }, [user?.usn, subjectId]);
   
   const pct = parseInt(percentage || '0', 10);
   
@@ -52,29 +52,42 @@ export default function SubjectDetailScreen() {
       </View>
 
       {/* Records List */}
-      <FlatList
-        data={records}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
-        renderItem={({ item }) => (
-          <View style={[styles.recordCard, { backgroundColor: colors.card }]}>
-            <View style={styles.dateContainer}>
-              <MaterialIcons name="event" size={20} color={colors.subtext} style={styles.icon} />
-              <Text style={[styles.dateText, { color: colors.text }]}>{item.date}</Text>
+      {isLoading ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={{ marginTop: 10, color: colors.subtext }}>Loading records...</Text>
+        </View>
+      ) : error ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <MaterialIcons name="error-outline" size={48} color={colors.badgeRed} />
+          <Text style={{ marginTop: 10, color: colors.text, textAlign: 'center' }}>{error}</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={records}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContent}
+          ListEmptyComponent={<Text style={{ textAlign: 'center', color: colors.subtext, marginTop: 20 }}>No records found.</Text>}
+          renderItem={({ item }) => (
+            <View style={[styles.recordCard, { backgroundColor: colors.card }]}>
+              <View style={styles.dateContainer}>
+                <MaterialIcons name="event" size={20} color={colors.subtext} style={styles.icon} />
+                <Text style={[styles.dateText, { color: colors.text }]}>{item.date}</Text>
+              </View>
+              <View style={styles.statusContainer}>
+                {item.isPresent ? (
+                  <MaterialIcons name="check-circle" size={24} color={colors.badgeGreen} />
+                ) : (
+                  <MaterialIcons name="cancel" size={24} color={colors.badgeRed} />
+                )}
+                <Text style={[styles.statusText, { color: item.isPresent ? colors.badgeGreen : colors.badgeRed }]}>
+                  {item.isPresent ? 'Present' : 'Absent'}
+                </Text>
+              </View>
             </View>
-            <View style={styles.statusContainer}>
-              {item.isPresent ? (
-                <MaterialIcons name="check-circle" size={24} color={colors.badgeGreen} />
-              ) : (
-                <MaterialIcons name="cancel" size={24} color={colors.badgeRed} />
-              )}
-              <Text style={[styles.statusText, { color: item.isPresent ? colors.badgeGreen : colors.badgeRed }]}>
-                {item.isPresent ? 'Present' : 'Absent'}
-              </Text>
-            </View>
-          </View>
-        )}
-      />
+          )}
+        />
+      )}
     </SafeAreaView>
   );
 }

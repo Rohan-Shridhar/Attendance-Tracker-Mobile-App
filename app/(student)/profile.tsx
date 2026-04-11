@@ -11,7 +11,10 @@ import {
   TouchableWithoutFeedback,
   Alert,
   Linking,
-  Platform
+  Platform,
+  ActivityIndicator,
+  TextInput,
+  KeyboardAvoidingView
 } from 'react-native';
 import { useAuthStore } from '../../store/authStore';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -21,6 +24,7 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useStudentAttendanceStore } from '../../store/studentAttendanceStore';
 import generateAttendanceToken from '../../src/utils/tokenGenerator';
+import { getStudentAttendance, changePassword } from '../../src/services/api';
 
 
 export default function StudentProfileScreen() {
@@ -40,6 +44,31 @@ export default function StudentProfileScreen() {
   const [scannedToken, setScannedToken] = useState('');
   const [isValidating, setIsValidating] = useState(false);
   const [isVerificationError, setIsVerificationError] = useState(false);
+  const [attendanceData, setAttendanceData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Password state
+  const [isPasswordModalVisible, setIsPasswordModalVisible] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  useEffect(() => {
+    const fetchAttendance = async () => {
+      if (!user?.usn) return;
+      try {
+        setIsLoading(true);
+        const data = await getStudentAttendance(user.usn);
+        setAttendanceData(data);
+      } catch (error) {
+        console.error('Failed to fetch attendance:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchAttendance();
+  }, [user?.usn]);
 
   const scanLineAnim = React.useRef(new Animated.Value(0)).current;
 
@@ -125,12 +154,41 @@ export default function StudentProfileScreen() {
     return name ? name.split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase() : 'U';
   };
 
-  const subjects = [
-    { id: '1', name: 'DS', percentage: 80 },
-    { id: '2', name: 'DBMS', percentage: 60 },
-    { id: '3', name: 'OOPS', percentage: 45 },
-    { id: '4', name: 'OS', percentage: 78 },
-    { id: '5', name: 'CN', percentage: 72 },
+  const handleChangePassword = async () => {
+    setPasswordError(null);
+    if (!currentPassword || !newPassword) {
+      setPasswordError('Please fill in both fields.');
+      return;
+    }
+    if (!/^\d{4,}$/.test(newPassword)) {
+      setPasswordError('New password must be at least 4 digits and only numbers.');
+      return;
+    }
+    if (currentPassword === newPassword) {
+      setPasswordError('New password cannot be the same as current password.');
+      return;
+    }
+    try {
+      setIsChangingPassword(true);
+      if (!user?.usn) throw new Error('User USN not found.');
+      await changePassword('student', user.usn, currentPassword, newPassword);
+      setIsPasswordModalVisible(false);
+      setCurrentPassword('');
+      setNewPassword('');
+      Alert.alert('Success', 'Password changed successfully!');
+    } catch (err: any) {
+      setPasswordError(err.message || 'Failed to change password.');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+  const subjectsList = [
+    { id: 'dst', name: 'Data Structures' },
+    { id: 'dbm', name: 'Database Management' },
+    { id: 'oop', name: 'Object Oriented Programming' },
+    { id: 'ops', name: 'Operating Systems' },
+    { id: 'cns', name: 'Computer Networks' },
   ];
 
   const getBadgeColor = (percentage: number) => {
@@ -150,32 +208,39 @@ export default function StudentProfileScreen() {
             <Text style={styles.avatarText}>{getInitials(user?.name)}</Text>
           </View>
           <Text style={[styles.nameText, { color: colors.text }]}>{user?.name || 'Student Name'}</Text>
-          <Text style={[styles.emailText, { color: colors.subtext }]}>{user?.email || 'student@example.com'}</Text>
+          <Text style={[styles.emailText, { color: colors.subtext }]}>{user?.gender === 'M' ? 'Male' : 'Female'}</Text>
           <View style={[styles.enrollmentBadge, { backgroundColor: colors.card, borderColor: colors.border }]}>
-             <Text style={[styles.enrollmentText, { color: colors.primary }]}>EN2024001</Text>
+             <Text style={[styles.enrollmentText, { color: colors.primary }]}>{user?.usn || 'USN'}</Text>
           </View>
         </View>
 
         {/* Subjects List */}
         <View style={styles.subjectsContainer}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>My Subjects</Text>
-          {subjects.map((subject) => {
-            const subjectColors = getBadgeColor(subject.percentage);
+          {subjectsList.map((subject) => {
+            const stats = attendanceData?.[subject.id] || { percentage: 0 };
+            const percentage = stats.percentage;
+            const subjectColors = getBadgeColor(percentage);
+            
             return (
               <TouchableOpacity
                 key={subject.id}
                 style={[styles.subjectCard, { backgroundColor: colors.card, shadowColor: colors.primary }]}
-                onPress={() => router.push({ pathname: '/(student)/subject', params: { name: subject.name, percentage: subject.percentage } })}
+                onPress={() => router.push({ pathname: '/(student)/subject', params: { name: subject.name, percentage: percentage, subjectId: subject.id } })}
               >
                 <View style={[styles.subjectIcon, { backgroundColor: colors.inputBackground }]}>
                   <Text style={[styles.subjectIconText, { color: colors.primary }]}>{subject.name.substring(0, 1)}</Text>
                 </View>
-                <Text style={[styles.subjectName, { color: colors.text }]}>{subject.name}</Text>
-                <View style={[styles.badge, { backgroundColor: subjectColors.bg }]}>
-                  <Text style={[styles.badgeText, { color: subjectColors.text }]}>
-                    {subject.percentage}%
-                  </Text>
-                </View>
+                <Text style={[styles.subjectName, { color: colors.text }]} numberOfLines={1}>{subject.name}</Text>
+                {isLoading ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <View style={[styles.badge, { backgroundColor: subjectColors.bg }]}>
+                    <Text style={[styles.badgeText, { color: subjectColors.text }]}>
+                      {percentage}%
+                    </Text>
+                  </View>
+                )}
               </TouchableOpacity>
             );
           })}
@@ -199,6 +264,16 @@ export default function StudentProfileScreen() {
         </View>
 
         <View style={styles.spacer} />
+        
+        {/* Change Password Button */}
+        <TouchableOpacity 
+          style={[styles.logoutButton, { backgroundColor: colors.card, borderColor: colors.border, marginBottom: 15 }]} 
+          onPress={() => setIsPasswordModalVisible(true)}
+        >
+          <MaterialIcons name="lock-outline" size={20} color={colors.text} style={styles.btnIcon} />
+          <Text style={[styles.logoutButtonText, { color: colors.text }]}>Change Password</Text>
+        </TouchableOpacity>
+
         {/* Logout Button */}
         <TouchableOpacity style={[styles.logoutButton, { backgroundColor: colors.badgeRed + '11', borderColor: colors.badgeRed + '44' }]} onPress={logout}>
           <MaterialIcons name="logout" size={20} color={colors.badgeRed} style={styles.btnIcon} />
@@ -296,6 +371,62 @@ export default function StudentProfileScreen() {
                </>
              )}
            </View>
+        </View>
+      </Modal>
+
+      {/* Password Change Modal */}
+      <Modal
+        visible={isPasswordModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setIsPasswordModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%', alignItems: 'center' }}>
+            <View style={[styles.modalContent, { backgroundColor: colors.card, width: '90%' }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Change Password</Text>
+              
+              <View style={{ width: '100%', marginBottom: 15 }}>
+                <Text style={{ color: colors.text, marginBottom: 6, fontWeight: '600', fontSize: 14 }}>Current Password</Text>
+                <TextInput
+                  style={{ width: '100%', borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 12, color: colors.text, backgroundColor: colors.inputBackground }}
+                  secureTextEntry
+                  keyboardType="numeric"
+                  value={currentPassword}
+                  onChangeText={setCurrentPassword}
+                />
+              </View>
+
+              <View style={{ width: '100%', marginBottom: 15 }}>
+                <Text style={{ color: colors.text, marginBottom: 6, fontWeight: '600', fontSize: 14 }}>New Password <Text style={{fontWeight: 'normal', fontSize: 12, color: colors.subtext}}>(minimum 4 digits)</Text></Text>
+                <TextInput
+                  style={{ width: '100%', borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 12, color: colors.text, backgroundColor: colors.inputBackground }}
+                  secureTextEntry
+                  keyboardType="numeric"
+                  value={newPassword}
+                  onChangeText={(text) => { setNewPassword(text); setPasswordError(null); }}
+                />
+              </View>
+
+              {passwordError && <Text style={{ color: colors.badgeRed, marginBottom: 15, textAlign: 'center' }}>{passwordError}</Text>}
+
+              <View style={{ flexDirection: 'row', width: '100%', justifyContent: 'space-between' }}>
+                <TouchableOpacity 
+                  style={{ flex: 1, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.border, alignItems: 'center', marginRight: 10 }} 
+                  onPress={() => { setIsPasswordModalVisible(false); setCurrentPassword(''); setNewPassword(''); setPasswordError(null); }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: 'bold' }}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={{ flex: 1, padding: 12, borderRadius: 8, backgroundColor: colors.primary, alignItems: 'center' }} 
+                  onPress={handleChangePassword}
+                  disabled={isChangingPassword}
+                >
+                  {isChangingPassword ? <ActivityIndicator color="#FFF" /> : <Text style={{ color: '#FFF', fontWeight: 'bold' }}>Save</Text>}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 

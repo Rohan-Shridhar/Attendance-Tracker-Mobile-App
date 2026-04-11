@@ -7,29 +7,41 @@ import {
   StyleSheet, 
   KeyboardAvoidingView, 
   Platform, 
-  SafeAreaView 
+  SafeAreaView,
+  ActivityIndicator
 } from 'react-native';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
+import { teacherLogin } from '../src/services/api';
 
-export default function LoginScreen() {
+export default function TeacherLoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [errorVisible, setErrorVisible] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const login = useAuthStore((state) => state.login);
+  const setAuth = useAuthStore((state) => state.setAuth);
   const { colors, isDarkMode, toggleTheme } = useThemeStore();
   const router = useRouter();
 
-  const handleLogin = () => {
-    setErrorVisible(false);
-    // password accepted as anything for mock
-    const success = login(email);
-    if (!success) {
-      setErrorVisible(true);
+  const handleLogin = async () => {
+    setErrorMessage(null);
+    setIsLoading(true);
+
+    try {
+      if (!email || !password) {
+        throw new Error('Please enter both Email and Password');
+      }
+      const userData = await teacherLogin(email, password);
+      setAuth(userData);
+      router.replace('/(teacher)' as any);
+    } catch (error: any) {
+      setErrorMessage(error.message || 'Login failed. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -48,7 +60,8 @@ export default function LoginScreen() {
         style={styles.container}
       >
         <View style={styles.headerContainer}>
-          <Text style={[styles.logo, { color: colors.primary }]}>Attendance Tracker</Text>
+          <Text style={[styles.logo, { color: colors.primary }]}>Teacher Login</Text>
+          <Text style={[styles.subtitle, { color: colors.subtext }]}>Sign in with your email</Text>
         </View>
 
         <View style={styles.formContainer}>
@@ -58,12 +71,12 @@ export default function LoginScreen() {
               <MaterialIcons name="email" size={20} color={colors.subtext} style={styles.icon} />
               <TextInput
                 style={[styles.input, { color: colors.text }]}
-                placeholder="teacher@test.com or student@test.com"
+                placeholder="name.cse@bmsce.ac.in"
                 placeholderTextColor={colors.subtext}
                 value={email}
                 onChangeText={(text) => {
                   setEmail(text);
-                  setErrorVisible(false); // hide error while typing
+                  setErrorMessage(null);
                 }}
                 autoCapitalize="none"
                 keyboardType="email-address"
@@ -77,34 +90,31 @@ export default function LoginScreen() {
               <MaterialIcons name="lock" size={20} color={colors.subtext} style={styles.icon} />
               <TextInput
                 style={[styles.input, { color: colors.text }]}
-                placeholder="Enter password"
+                placeholder="Enter numeric password"
                 placeholderTextColor={colors.subtext}
                 value={password}
                 onChangeText={(text) => {
                   setPassword(text);
-                  setErrorVisible(false);
+                  setErrorMessage(null);
                 }}
                 secureTextEntry={!showPassword}
+                keyboardType="numeric"
               />
-              <TouchableOpacity 
-                onPress={() => setShowPassword(!showPassword)}
-                style={styles.eyeIcon}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
+              <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
                 <MaterialIcons name={showPassword ? "visibility" : "visibility-off"} size={20} color={colors.subtext} />
               </TouchableOpacity>
             </View>
           </View>
 
-          <TouchableOpacity style={[styles.button, { backgroundColor: colors.primary, shadowColor: colors.primary }]} onPress={handleLogin}>
-            <Text style={styles.buttonText}>Login</Text>
+          <TouchableOpacity 
+            style={[styles.button, { backgroundColor: colors.primary, shadowColor: colors.primary }]} 
+            onPress={handleLogin}
+            disabled={isLoading}
+          >
+            {isLoading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.buttonText}>Login</Text>}
           </TouchableOpacity>
 
-          {errorVisible && (
-            <Text style={[styles.errorText, { color: colors.badgeRed }]}>
-              Invalid email or password. Please try again.
-            </Text>
-          )}
+          {errorMessage && <Text style={[styles.errorText, { color: colors.badgeRed }]}>{errorMessage}</Text>}
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -112,88 +122,21 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
-  themeToggle: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 60 : 40,
-    right: 20,
-    zIndex: 10,
-    padding: 10,
-  },
-  backButton: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 60 : 40,
-    left: 20,
-    zIndex: 10,
-    padding: 10,
-  },
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 30,
-  },
-  headerContainer: {
-    alignItems: 'center',
-    marginBottom: 50,
-  },
-  logo: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    letterSpacing: -1,
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  formContainer: {
-    width: '100%',
-  },
-  inputGroup: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 14,
-    marginBottom: 8,
-    fontWeight: '600',
-  },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 15,
-    height: 55,
-  },
-  icon: {
-    marginRight: 10,
-  },
-  input: {
-    flex: 1,
-    fontSize: 16,
-  },
-  eyeIcon: {
-    padding: 5,
-  },
-  button: {
-    borderRadius: 12,
-    height: 55,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 10,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
-    elevation: 4,
-  },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  errorText: {
-    marginTop: 15,
-    textAlign: 'center',
-    fontSize: 14,
-    fontWeight: '500',
-  },
+  safeArea: { flex: 1 },
+  themeToggle: { position: 'absolute', top: Platform.OS === 'ios' ? 60 : 40, right: 20, zIndex: 10, padding: 10 },
+  backButton: { position: 'absolute', top: Platform.OS === 'ios' ? 60 : 40, left: 20, zIndex: 10, padding: 10 },
+  container: { flex: 1, justifyContent: 'center', paddingHorizontal: 30 },
+  headerContainer: { alignItems: 'center', marginBottom: 40 },
+  logo: { fontSize: 36, fontWeight: 'bold', textAlign: 'center', marginBottom: 8 },
+  subtitle: { fontSize: 16, fontWeight: '500' },
+  formContainer: { width: '100%' },
+  inputGroup: { marginBottom: 20 },
+  label: { fontSize: 14, marginBottom: 8, fontWeight: '600' },
+  inputWrapper: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 12, paddingHorizontal: 15, height: 55 },
+  icon: { marginRight: 10 },
+  input: { flex: 1, fontSize: 16 },
+  eyeIcon: { padding: 5 },
+  button: { borderRadius: 12, height: 55, justifyContent: 'center', alignItems: 'center', marginTop: 15, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 5, elevation: 4 },
+  buttonText: { color: '#FFFFFF', fontSize: 18, fontWeight: 'bold' },
+  errorText: { marginTop: 20, textAlign: 'center', fontSize: 14, fontWeight: '600' },
 });

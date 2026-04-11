@@ -15,8 +15,12 @@ export default function LandingScreen() {
   const router = useRouter();
   const { colors, isDarkMode, toggleTheme } = useThemeStore();
 
-  const handleNavigateToLogin = () => {
-    router.replace('/login');
+  const handleNavigateToLogin = (role: 'student' | 'teacher') => {
+    if (role === 'student') {
+      router.replace('/student-login');
+    } else {
+      router.replace('/teacher-login');
+    }
   };
 
   return (
@@ -37,7 +41,7 @@ export default function LandingScreen() {
       <View style={styles.bottomSection}>
         <TouchableOpacity 
           style={[styles.filledButton, { backgroundColor: colors.primary, shadowColor: colors.primary }]}
-          onPress={handleNavigateToLogin}
+          onPress={() => handleNavigateToLogin('student')}
         >
           <Ionicons name="person-outline" size={20} color="#FFFFFF" style={styles.buttonIcon} />
           <Text style={styles.filledButtonText}>Login as Student</Text>
@@ -45,7 +49,7 @@ export default function LandingScreen() {
 
         <TouchableOpacity 
           style={[styles.outlinedButton, { borderColor: colors.primary }]}
-          onPress={handleNavigateToLogin}
+          onPress={() => handleNavigateToLogin('teacher')}
         >
           <Ionicons name="school-outline" size={20} color={colors.primary} style={styles.buttonIcon} />
           <Text style={[styles.outlinedButtonText, { color: colors.primary }]}>Login as Teacher</Text>

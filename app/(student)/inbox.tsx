@@ -16,26 +16,7 @@ interface Notification {
   timestamp: string;
 }
 
-const INITIAL_MOCKS: Notification[] = [
-  {
-    id: '1',
-    title: 'Absence Alert — DBMS',
-    message: 'Your attendance in DBMS has dropped below 75%. Please attend regularly.',
-    timestamp: '2 hours ago',
-  },
-  {
-    id: '2',
-    title: 'Absence Alert — OOPS',
-    message: 'Your attendance in OOPS has dropped below 75%. Please attend regularly.',
-    timestamp: '1 day ago',
-  },
-  {
-    id: '3',
-    title: 'Absence Alert — CN',
-    message: 'Your attendance in CN has dropped below 75%. Please attend regularly.',
-    timestamp: '3 days ago',
-  },
-];
+const INITIAL_MOCKS: Notification[] = [];
 
 export default function StudentInboxScreen() {
   const notifications = INITIAL_MOCKS;
@@ -72,6 +53,13 @@ export default function StudentInboxScreen() {
         renderItem={renderNotification}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <MaterialIcons name="notifications-none" size={64} color={colors.subtext} />
+            <Text style={[styles.emptyText, { color: colors.text }]}>No new notifications</Text>
+            <Text style={[styles.emptySubText, { color: colors.subtext }]}>Your inbox is empty. We'll alert you here for any attendance updates.</Text>
+          </View>
+        }
       />
     </SafeAreaView>
   );
@@ -132,5 +120,23 @@ const styles = StyleSheet.create({
   message: {
     fontSize: 14,
     lineHeight: 20,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 100,
+    paddingHorizontal: 40,
+  },
+  emptyText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptySubText: {
+    fontSize: 16,
+    textAlign: 'center',
+    lineHeight: 24,
   },
 });
