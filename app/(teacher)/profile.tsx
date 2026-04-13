@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, SafeAreaView, ScrollView, TouchableWithoutFeedback, Alert, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import { useAuthStore } from '../../store/authStore';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -6,7 +6,7 @@ import QRCode from 'react-native-qrcode-svg';
 import { useThemeStore } from '../../store/themeStore';
 import { useAttendanceStore } from '../../store/attendanceStore';
 import generateAttendanceToken, { getSecondsUntilNextToken } from '../../src/utils/tokenGenerator';
-import { getStudentCount, changePassword } from '../../src/services/api';
+import { getStudentCount, changePassword, updateQRToken, clearQRToken, updateQRKey1, updateQRKey2, clearQRKey1, clearQRKey2 } from '../../src/services/api';
 
 export default function TeacherProfileScreen() {
   const { user, logout } = useAuthStore();
@@ -28,6 +28,26 @@ export default function TeacherProfileScreen() {
   const [newPassword, setNewPassword] = useState('');
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  // Timeouts and Refs
+  const key2UpdateTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const key1ClearTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const key2ClearTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (key2UpdateTimeout.current) clearTimeout(key2UpdateTimeout.current);
+      if (key1ClearTimeout.current) clearTimeout(key1ClearTimeout.current);
+      if (key2ClearTimeout.current) clearTimeout(key2ClearTimeout.current);
+      
+      console.log("Key 1 cleared");
+      clearQRKey1().catch(() => {});
+      console.log("Key 2 cleared");
+      clearQRKey2().catch(() => {});
+    };
+  }, []);
 
   useEffect(() => {
     const fetchStudentCount = async () => {
@@ -52,18 +72,38 @@ export default function TeacherProfileScreen() {
   }, [isQRModalVisible, scannedCount, incrementScannedCount]);
 
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval>;
-
     if (isQRModalVisible) {
       // Initial generation
-      setCurrentToken(generateAttendanceToken());
+      const subject_id = user?.subject_id || '';
+      const initialToken = generateAttendanceToken(subject_id);
+      setCurrentToken(initialToken);
+      
+      console.log("Key 1 updated:", initialToken);
+      updateQRKey1(initialToken).catch(err => console.error('Failed to update Key 1:', err));
+
+      key2UpdateTimeout.current = setTimeout(() => {
+        console.log("Key 2 updated:", initialToken);
+        updateQRKey2(initialToken).catch(err => console.error('Failed to update Key 2:', err));
+      }, 5000);
+
       const initialSeconds = getSecondsUntilNextToken();
       setSecondsLeft(initialSeconds);
 
-      interval = setInterval(() => {
+      intervalRef.current = setInterval(() => {
         setSecondsLeft((prev) => {
           if (prev <= 1) {
-            setCurrentToken(generateAttendanceToken());
+            const newToken = generateAttendanceToken(subject_id);
+            setCurrentToken(newToken);
+            
+            console.log("Key 1 updated:", newToken);
+            updateQRKey1(newToken).catch(err => console.error('Failed to update Key 1:', err));
+            
+            if (key2UpdateTimeout.current) clearTimeout(key2UpdateTimeout.current);
+            key2UpdateTimeout.current = setTimeout(() => {
+              console.log("Key 2 updated:", newToken);
+              updateQRKey2(newToken).catch(err => console.error('Failed to update Key 2:', err));
+            }, 5000);
+            
             return 20;
           }
           return prev - 1;
@@ -72,7 +112,10 @@ export default function TeacherProfileScreen() {
     }
 
     return () => {
-      if (interval) clearInterval(interval);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
     };
   }, [isQRModalVisible]);
 
@@ -90,6 +133,17 @@ export default function TeacherProfileScreen() {
   const handleCloseQR = () => {
     setIsQRModalVisible(false);
     setQrPhase(false);
+    
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    if (key2UpdateTimeout.current) clearTimeout(key2UpdateTimeout.current);
+    
+    console.log("Key 1 cleared");
+    clearQRKey1().catch(err => console.error('Failed to clear Key 1:', err));
+    
+    key1ClearTimeout.current = setTimeout(() => {
+      console.log("Key 2 cleared");
+      clearQRKey2().catch(err => console.error('Failed to clear Key 2:', err));
+    }, 5000);
   };
 
   // Helper to get initials
@@ -124,6 +178,22 @@ export default function TeacherProfileScreen() {
     } finally {
       setIsChangingPassword(false);
     }
+  };
+
+  const handleLogout = () => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    if (key2UpdateTimeout.current) clearTimeout(key2UpdateTimeout.current);
+    if (key1ClearTimeout.current) clearTimeout(key1ClearTimeout.current);
+    if (key2ClearTimeout.current) clearTimeout(key2ClearTimeout.current);
+
+    if (isQRModalVisible) {
+      setIsQRModalVisible(false);
+      console.log("Key 1 cleared");
+      clearQRKey1().catch(err => console.error('Failed to clear Key 1 on logout:', err));
+      console.log("Key 2 cleared");
+      clearQRKey2().catch(err => console.error('Failed to clear Key 2 on logout:', err));
+    }
+    logout();
   };
 
   return (
@@ -198,7 +268,7 @@ export default function TeacherProfileScreen() {
         </TouchableOpacity>
 
         {/* Logout Button */}
-        <TouchableOpacity style={[styles.logoutButton, { backgroundColor: colors.badgeRed + '15', borderColor: colors.badgeRed + '40' }]} onPress={logout}>
+        <TouchableOpacity style={[styles.logoutButton, { backgroundColor: colors.badgeRed + '15', borderColor: colors.badgeRed + '40' }]} onPress={handleLogout}>
           <MaterialIcons name="logout" size={20} color={colors.badgeRed} style={styles.btnIcon} />
           <Text style={[styles.logoutButtonText, { color: colors.badgeRed }]}>Logout</Text>
         </TouchableOpacity>

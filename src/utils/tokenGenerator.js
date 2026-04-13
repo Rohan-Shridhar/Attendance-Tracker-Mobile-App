@@ -6,7 +6,7 @@
  * @param {Date} [date] - Optional date to generate token for. Defaults to now.
  * @returns {string} The formatted token
  */
-const generateAttendanceToken = (date = new Date()) => {
+const generateAttendanceToken = (subject_id = '', date = new Date()) => {
   const YYYY = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const DD = String(date.getDate()).padStart(2, '0');
@@ -17,7 +17,8 @@ const generateAttendanceToken = (date = new Date()) => {
   const rawSeconds = date.getSeconds();
   const SS = String(Math.floor(rawSeconds / 20) * 20).padStart(2, '0');
   
-  return `${HH}${MM}${SS}${YYYY}${month}${DD}`;
+  const timestamp_block = `${HH}${MM}${SS}${YYYY}${month}${DD}`;
+  return subject_id ? `${timestamp_block}_${subject_id}` : timestamp_block;
 };
 
 /**

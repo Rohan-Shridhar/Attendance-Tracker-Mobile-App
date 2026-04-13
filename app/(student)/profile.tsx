@@ -99,10 +99,17 @@ export default function StudentProfileScreen() {
     if (isValidating) {
       timer = setTimeout(() => {
         // Verification logic
-        const currentToken = generateAttendanceToken();
-        const previousToken = generateAttendanceToken(new Date(Date.now() - 20000));
+        const scannedParts = scannedToken.split('_');
+        const scannedTimestamp = scannedParts[0];
+        const scannedSubjectId = scannedParts.length > 1 ? scannedParts[1] : '';
+
+        const currentToken = generateAttendanceToken(scannedSubjectId);
+        const previousToken = generateAttendanceToken(scannedSubjectId, new Date(Date.now() - 20000));
         
-        if (scannedToken === currentToken || scannedToken === previousToken) {
+        const currentTimestamp = currentToken.split('_')[0];
+        const previousTimestamp = previousToken.split('_')[0];
+
+        if (currentTimestamp === scannedTimestamp || previousTimestamp === scannedTimestamp) {
           setIsVerificationError(false);
         } else {
           setIsVerificationError(true);
@@ -361,6 +368,9 @@ export default function StudentProfileScreen() {
                <>
                  <MaterialIcons name="check-circle" size={50} color={colors.badgeGreen} style={{ marginBottom: 15 }} />
                  <Text style={[styles.modalTitle, { color: colors.text }]}>Attendance Marked!</Text>
+                 <View style={[styles.tokenContainer, { backgroundColor: colors.inputBackground }]}>
+                   <Text style={[styles.monospaceToken, { color: colors.text }]}>{scannedToken}</Text>
+                 </View>
                  <Text style={[styles.modalSubText, { color: colors.subtext }]}>Token verified successfully.</Text>
                  <TouchableOpacity 
                    style={[styles.closeButton, { backgroundColor: colors.primary }]} 

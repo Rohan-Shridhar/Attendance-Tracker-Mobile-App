@@ -116,3 +116,65 @@ export const changePassword = async (role, identifier, currentPassword, newPassw
   });
   return handleResponse(response);
 };
+
+/**
+ * Update the global active QR token in the database
+ * @param {string} token 
+ */
+export const updateQRToken = async (token) => {
+  const response = await fetch(`${BASE_URL}/qr/update`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ token }),
+  });
+  return handleResponse(response);
+};
+
+/**
+ * Clear the global active QR token from the database
+ */
+export const clearQRToken = async () => {
+  const response = await fetch(`${BASE_URL}/qr/clear`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+  return handleResponse(response);
+};
+
+export const updateQRKey1 = async (token) => {
+  const response = await fetch(`${BASE_URL}/qr/update-key1`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token }),
+  });
+  return handleResponse(response);
+};
+
+export const updateQRKey2 = async (token) => {
+  const response = await fetch(`${BASE_URL}/qr/update-key2`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token }),
+  });
+  return handleResponse(response);
+};
+
+export const clearQRKey1 = async () => {
+  const response = await fetch(`${BASE_URL}/qr/clear-key1`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  return handleResponse(response);
+};
+
+export const clearQRKey2 = async () => {
+  const response = await fetch(`${BASE_URL}/qr/clear-key2`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  return handleResponse(response);
+};

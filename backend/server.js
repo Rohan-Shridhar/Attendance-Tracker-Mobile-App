@@ -19,6 +19,8 @@ connectDB();
 app.use('/api/auth', authRoutes);
 app.use('/api/teacher', teacherRoutes);
 app.use('/api/attendance', attendanceRoutes);
+const qrRoutes = require('./routes/qrRoutes');
+app.use('/api/qr', qrRoutes);
 
 const PORT = process.env.PORT || 3000;
 
