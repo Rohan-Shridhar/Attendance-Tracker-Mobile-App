@@ -35,7 +35,9 @@ const studentLogin = async (req, res) => {
     }
 
     // Passwords in DB are Number (Int32), req body password might be string
+    console.log(`Student login attempt: ${id}, Password check: ${Number(password)} vs ${student.password}`);
     if (Number(password) !== student.password) {
+      console.log('Password mismatch');
       return res.status(401).json({ message: 'Invalid password' });
     }
 
@@ -68,7 +70,9 @@ const teacherLogin = async (req, res) => {
     }
 
     // Passwords in DB are Number (Int32), req body password might be string
+    console.log(`Teacher login attempt: ${id}, Password check: ${Number(password)} vs ${teacher.password}`);
     if (Number(password) !== teacher.password) {
+      console.log('Password mismatch');
       return res.status(401).json({ message: 'Invalid password' });
     }
 

@@ -23,8 +23,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useStudentAttendanceStore } from '../../store/studentAttendanceStore';
-import generateAttendanceToken from '../../src/utils/tokenGenerator';
-import { getStudentAttendance, changePassword } from '../../src/services/api';
+import { getStudentAttendance, changePassword, markAttendance } from '../../src/services/api';
 
 
 export default function StudentProfileScreen() {
@@ -46,6 +45,7 @@ export default function StudentProfileScreen() {
   const [isVerificationError, setIsVerificationError] = useState(false);
   const [attendanceData, setAttendanceData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [serverErrorMessage, setServerErrorMessage] = useState<string | null>(null);
 
   // Password state
   const [isPasswordModalVisible, setIsPasswordModalVisible] = useState(false);
@@ -54,20 +54,23 @@ export default function StudentProfileScreen() {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
+  const fetchAttendance = async () => {
+    if (!user?.usn) return;
+    try {
+      const data = await getStudentAttendance(user.usn);
+      setAttendanceData(data);
+    } catch (error) {
+      console.error('Failed to fetch attendance:', error);
+    }
+  };
+
   useEffect(() => {
-    const fetchAttendance = async () => {
-      if (!user?.usn) return;
-      try {
-        setIsLoading(true);
-        const data = await getStudentAttendance(user.usn);
-        setAttendanceData(data);
-      } catch (error) {
-        console.error('Failed to fetch attendance:', error);
-      } finally {
-        setIsLoading(false);
-      }
+    const initialFetch = async () => {
+      setIsLoading(true);
+      await fetchAttendance();
+      setIsLoading(false);
     };
-    fetchAttendance();
+    initialFetch();
   }, [user?.usn]);
 
   const scanLineAnim = React.useRef(new Animated.Value(0)).current;
@@ -96,26 +99,19 @@ export default function StudentProfileScreen() {
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
-    if (isValidating) {
-      timer = setTimeout(() => {
-        // Verification logic
-        const scannedParts = scannedToken.split('_');
-        const scannedTimestamp = scannedParts[0];
-        const scannedSubjectId = scannedParts.length > 1 ? scannedParts[1] : '';
-
-        const currentToken = generateAttendanceToken(scannedSubjectId);
-        const previousToken = generateAttendanceToken(scannedSubjectId, new Date(Date.now() - 20000));
-        
-        const currentTimestamp = currentToken.split('_')[0];
-        const previousTimestamp = previousToken.split('_')[0];
-
-        if (currentTimestamp === scannedTimestamp || previousTimestamp === scannedTimestamp) {
+    if (isValidating && scannedToken) {
+      timer = setTimeout(async () => {
+        try {
+          await markAttendance(scannedToken);
           setIsVerificationError(false);
-        } else {
+          // Silent refresh of attendance data
+          fetchAttendance();
+        } catch (error: any) {
           setIsVerificationError(true);
+          setServerErrorMessage(error.message || 'Verification failed');
+        } finally {
+          setIsValidating(false);
         }
-        
-        setIsValidating(false);
       }, 1500);
     }
     return () => clearTimeout(timer);
@@ -143,9 +139,11 @@ export default function StudentProfileScreen() {
 
   const handleBarcodeScanned = ({ data }: { data: string }) => {
     setIsScannerVisible(false);
-    setScannedToken(data);
+    const fullToken = user?.usn ? `${data}_${user.usn}` : data;
+    setScannedToken(fullToken);
     setIsValidating(true);
     setAttendanceSavedModalVisible(true);
+    setServerErrorMessage(null);
   };
 
   const handleAttendanceSavedOK = () => {
@@ -353,9 +351,9 @@ export default function StudentProfileScreen() {
              ) : isVerificationError ? (
                <>
                  <MaterialIcons name="error-outline" size={50} color={colors.badgeRed} style={{ marginBottom: 15 }} />
-                 <Text style={[styles.modalTitle, { color: colors.text }]}>Invalid QR Code</Text>
+                 <Text style={[styles.modalTitle, { color: colors.text }]}>Verification Failed</Text>
                  <Text style={[styles.modalSubText, { color: colors.subtext }]}>
-                   This QR code has expired or is not valid. Ask your teacher to show the QR code again.
+                   {serverErrorMessage || "This QR code is not valid or has expired."}
                  </Text>
                  <TouchableOpacity 
                    style={[styles.closeButton, { backgroundColor: colors.primary }]} 
@@ -369,9 +367,9 @@ export default function StudentProfileScreen() {
                  <MaterialIcons name="check-circle" size={50} color={colors.badgeGreen} style={{ marginBottom: 15 }} />
                  <Text style={[styles.modalTitle, { color: colors.text }]}>Attendance Marked!</Text>
                  <View style={[styles.tokenContainer, { backgroundColor: colors.inputBackground }]}>
-                   <Text style={[styles.monospaceToken, { color: colors.text }]}>{scannedToken}</Text>
+                   <Text style={[styles.monospaceToken, { color: colors.text, fontSize: 13 }]}>{scannedToken}</Text>
                  </View>
-                 <Text style={[styles.modalSubText, { color: colors.subtext }]}>Token verified successfully.</Text>
+                 <Text style={[styles.modalSubText, { color: colors.subtext }]}>Attendance has been successfully recorded.</Text>
                  <TouchableOpacity 
                    style={[styles.closeButton, { backgroundColor: colors.primary }]} 
                    onPress={handleAttendanceSavedOK}

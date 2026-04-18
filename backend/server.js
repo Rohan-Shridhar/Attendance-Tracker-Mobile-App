@@ -12,6 +12,15 @@ const app = express();
 app.use(cors()); // Basic CORS to allow all origins
 app.use(express.json()); // JSON body parser
 
+// Logger middleware
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+  if (req.method === 'POST') {
+    console.log('Body:', JSON.stringify(req.body, null, 2));
+  }
+  next();
+});
+
 // Connect to Database
 connectDB();
 
