@@ -1,5 +1,8 @@
 const { getAttendanceModel } = require('../db/models/Attendance');
 const Student = require('../db/models/Student');
+const QRKey = require('../db/models/QRKey');
+const Notification = require('../db/models/Notification');
+const Teacher = require('../db/models/Teacher');
 
 /**
  * @desc    Get student attendance percentages for all subjects
@@ -134,8 +137,341 @@ const getSubjectDetail = async (req, res) => {
   }
 };
 
+/**
+ * Helper to parse various date strings into a JS Date object
+ * Supported: "DD-MM-YYYY", "YYYY-MM-DD", "Day, DD Mon YYYY"
+ */
+const parseDateString = (dateStr) => {
+  if (!dateStr) return new Date(0);
+  
+  // Handle DD-MM-YYYY
+  if (dateStr.includes('-')) {
+    const parts = dateStr.split('-');
+    if (parts[0].length === 2) { // DD-MM-YYYY
+      const [d, m, y] = parts;
+      return new Date(y, m - 1, d);
+    }
+  }
+  
+  // Default JS parsing (handles YYYY-MM-DD and human readable formats)
+  const d = new Date(dateStr);
+  return isNaN(d.getTime()) ? new Date(0) : d;
+};
+
+/**
+ * @desc    Mark attendance for a student
+ * @route   POST /api/attendance/mark
+ * @access  Public (for now)
+ */
+const markAttendance = async (req, res) => {
+  const { token } = req.body;
+  console.log("Token received:", token);
+
+  try {
+    // STEP 1 — Parse the token
+    const parts = token.split("_");
+    if (parts.length < 3) {
+      return res.status(400).json({ message: "Invalid token format" });
+    }
+
+    const timestampBlock = parts[0];
+    const subjectId = parts[1];
+    const usn = parts[2].toUpperCase();
+
+    // STEP 2 — Get collection name from subjectId
+    const collectionName = subjectId.slice(-3).toLowerCase();
+    
+    // format is HHMMSS + YYYYMMDD
+    const datePart = timestampBlock.slice(6); // "20260418"
+    const day = datePart.slice(6);           // "18"
+    const month = datePart.slice(4, 6);       // "04"
+    const year = datePart.slice(0, 4);        // "2026"
+    const date = `${day}-${month}-${year}`;   // "18-04-2026"
+
+    console.log(`Parsed: date=${date} subject=${collectionName} usn=${usn}`);
+
+    // STEP 4 — Validate token against qr_keys
+    const [qrKey1, qrKey2] = await Promise.all([
+      QRKey.findOne({ key_id: 1 }),
+      QRKey.findOne({ key_id: 2 })
+    ]);
+
+    console.log("QR Key 1 timestamp:", qrKey1?.timestamp);
+    console.log("QR Key 2 timestamp:", qrKey2?.timestamp);
+
+    let isValid = false;
+    let validKeyId = null;
+
+    if (qrKey1?.timestamp && qrKey1.timestamp.split("_")[0] === timestampBlock) {
+      isValid = true;
+      validKeyId = 1;
+    } else if (qrKey2?.timestamp && qrKey2.timestamp.split("_")[0] === timestampBlock) {
+      isValid = true;
+      validKeyId = 2;
+    }
+
+    if (!isValid) {
+      console.log("Validation: FAILED");
+      return res.status(401).json({ message: "Invalid or expired QR code" });
+    }
+
+    console.log(`Validation: PASSED via key ${validKeyId}`);
+
+    // STEP 5 — Mark attendance in the correct collection
+    const AttendanceModel = getAttendanceModel(collectionName);
+    const existing = await AttendanceModel.findOne({ date: date });
+
+    if (existing) {
+      await AttendanceModel.updateOne(
+        { date: date },
+        { $set: { [usn]: "Present" } }
+      );
+      console.log(`Attendance written to collection: ${collectionName} (Updated)`);
+      return res.status(200).json({ message: "Attendance updated to Present", date, usn });
+    } else {
+      const newDoc = {
+        date: date,
+        "1WN24CS001": null,
+        "1WN24CS002": null,
+        "1WN24CS003": null,
+        "1WN24CS004": null,
+        "1WN24CS005": null
+      };
+      newDoc[usn] = "Present";
+      await AttendanceModel.create(newDoc);
+      console.log(`Attendance written to collection: ${collectionName} (Created)`);
+      return res.status(201).json({ message: "Attendance marked Present", date, usn });
+    }
+
+  } catch (error) {
+    console.error("markAttendance error:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/**
+ * @desc    Get detailed attendance for a student and subject
+ * @route   GET /api/attendance/student/:usn/subject/:collectionName
+ * @access  Public (for now)
+ */
+const getStudentSubjectDetail = async (req, res) => {
+  const { usn, collectionName } = req.params;
+
+  try {
+    const AttendanceModel = getAttendanceModel(collectionName);
+    const records = await AttendanceModel.find({});
+    
+    const history = [];
+    records.forEach(doc => {
+      const status = doc.get(usn);
+      if (status !== undefined && status !== null) {
+        history.push({
+          id: doc._id?.toString() || Math.random().toString(),
+          date: doc.date,
+          status: status
+        });
+      }
+    });
+
+    // Sort by date descending
+    history.sort((a, b) => parseDateString(b.date).getTime() - parseDateString(a.date).getTime());
+
+    res.status(200).json(history);
+  } catch (error) {
+    console.error("getStudentSubjectDetail error:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/**
+ * @desc    Get preview of attendance counts for today
+ * @route   GET /api/attendance/preview/:subject_id/:date
+ * @access  Public (for now)
+ */
+const getAttendancePreview = async (req, res) => {
+  const { subject_id, date } = req.params;
+  const collectionName = subject_id.slice(-3).toLowerCase();
+
+  const allUSNs = [
+    "1WN24CS001", "1WN24CS002", "1WN24CS003", "1WN24CS004", "1WN24CS005"
+  ];
+
+  try {
+    const AttendanceModel = getAttendanceModel(collectionName);
+    const doc = await AttendanceModel.findOne({ date: date });
+
+    if (!doc) {
+      return res.status(200).json({ presentCount: 0, absentCount: 5 });
+    }
+
+    let presentCount = 0;
+    allUSNs.forEach(usn => {
+      if (doc.get(usn) === "Present") {
+        presentCount++;
+      }
+    });
+
+    res.status(200).json({ 
+      presentCount, 
+      absentCount: 5 - presentCount 
+    });
+  } catch (error) {
+    console.error("getAttendancePreview error:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/**
+ * @desc    Finalize and save attendance (mark missing as Absent)
+ * @route   POST /api/attendance/save
+ * @access  Public (for now)
+ */
+const saveAttendance = async (req, res) => {
+  const { subject_id, date } = req.body;
+  const collectionName = subject_id.slice(-3).toLowerCase();
+
+  const allUSNs = [
+    "1WN24CS001", "1WN24CS002", "1WN24CS003", "1WN24CS004", "1WN24CS005"
+  ];
+
+  console.log(`Saving attendance for collection: ${collectionName} date: ${date}`);
+
+  try {
+    const AttendanceModel = getAttendanceModel(collectionName);
+    const doc = await AttendanceModel.findOne({ date: date });
+
+    let finalAbsentCount = 0;
+    let finalPresentCount = 0;
+    const absentUSNs = [];
+
+    if (doc) {
+      const setObj = {};
+      allUSNs.forEach(usn => {
+        if (doc.get(usn) !== "Present") {
+          setObj[usn] = "Absent";
+          finalAbsentCount++;
+          absentUSNs.push(usn);
+        } else {
+          finalPresentCount++;
+        }
+      });
+
+      await AttendanceModel.updateOne({ date: date }, { $set: setObj });
+      console.log(`Attendance written to collection: ${collectionName} (Updated)`);
+      console.log(`Present: ${finalPresentCount} Absent: ${finalAbsentCount}`);
+    } else {
+      const newDoc = { date: date };
+      allUSNs.forEach(usn => {
+        newDoc[usn] = "Absent";
+        absentUSNs.push(usn);
+      });
+      finalAbsentCount = 5;
+      finalPresentCount = 0;
+
+      await AttendanceModel.create(newDoc);
+      console.log(`Attendance written to collection: ${collectionName} (Created)`);
+      console.log(`Present: 0 Absent: 5`);
+    }
+
+    // CREATE NOTIFICATIONS
+    let notificationsSent = 0;
+    if (absentUSNs.length > 0) {
+      // Step 2: Get subject name from teachers collection
+      const teacher = await Teacher.findOne({ subject_id });
+      const subjectName = teacher ? teacher.subject : "Subject";
+
+      // Step 1: Fetch all documents for percentage calculation
+      const allRecords = await AttendanceModel.find({});
+
+      for (const usn of absentUSNs) {
+        let totalClasses = 0;
+        let presentCount = 0;
+
+        allRecords.forEach(r => {
+          const status = r.get(usn);
+          if (status !== undefined && status !== null) {
+            totalClasses++;
+            if (status === "Present") {
+              presentCount++;
+            }
+          }
+        });
+
+        const percentage = totalClasses === 0 ? 0 : Math.round((presentCount / totalClasses) * 100);
+
+        // Step 3: Create notification document
+        await Notification.create({
+          usn: usn,
+          type: "absent_alert",
+          subject: subjectName,
+          subject_id: subject_id,
+          date: date,
+          attendance_percentage: percentage,
+          message: `You were marked Absent for ${subjectName} on ${date}. Current attendance: ${percentage}%`,
+          is_read: false,
+          created_at: new Date()
+        });
+
+        console.log(`Notification created for ${usn} absent in ${subjectName} on ${date}`);
+        notificationsSent++;
+      }
+    }
+
+    res.status(200).json({ 
+      message: "Attendance saved", 
+      absentCount: finalAbsentCount, 
+      presentCount: finalPresentCount,
+      notificationsSent
+    });
+
+  } catch (error) {
+    console.error("saveAttendance error:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/**
+ * @desc    Get count of students who have scanned today
+ * @route   GET /api/attendance/scanned-count/:subject_id/:date
+ * @access  Public (for now)
+ */
+const getScannedCount = async (req, res) => {
+  const { subject_id, date } = req.params;
+  const collectionName = subject_id.slice(-3).toLowerCase();
+
+  const allUSNs = [
+    "1WN24CS001", "1WN24CS002", "1WN24CS003", "1WN24CS004", "1WN24CS005"
+  ];
+
+  try {
+    const AttendanceModel = getAttendanceModel(collectionName);
+    const doc = await AttendanceModel.findOne({ date: date });
+
+    if (!doc) {
+      return res.status(200).json({ count: 0 });
+    }
+
+    let count = 0;
+    allUSNs.forEach(usn => {
+      if (doc.get(usn) === "Present") {
+        count++;
+      }
+    });
+
+    res.status(200).json({ count });
+  } catch (error) {
+    console.error("getScannedCount error:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   getStudentAttendance,
   getClassAttendance,
   getSubjectDetail,
+  markAttendance,
+  getStudentSubjectDetail,
+  getAttendancePreview,
+  saveAttendance,
+  getScannedCount,
 };

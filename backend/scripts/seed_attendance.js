@@ -13,11 +13,11 @@ const usns = [
 const subjects = ['dst', 'dbm', 'oop', 'ops', 'cns'];
 
 const dates = [
-  'Wed, 01 Apr 2026',
-  'Thu, 02 Apr 2026',
-  'Fri, 03 Apr 2026',
-  'Sat, 04 Apr 2026',
-  'Sun, 05 Apr 2026'
+  '01-04-2026',
+  '02-04-2026',
+  '03-04-2026',
+  '04-04-2026',
+  '05-04-2026'
 ];
 
 async function seed() {

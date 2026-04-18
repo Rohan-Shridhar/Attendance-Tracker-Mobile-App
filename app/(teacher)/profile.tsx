@@ -6,21 +6,24 @@ import QRCode from 'react-native-qrcode-svg';
 import { useThemeStore } from '../../store/themeStore';
 import { useAttendanceStore } from '../../store/attendanceStore';
 import generateAttendanceToken, { getSecondsUntilNextToken } from '../../src/utils/tokenGenerator';
-import { getStudentCount, changePassword, updateQRToken, clearQRToken, updateQRKey1, updateQRKey2, clearQRKey1, clearQRKey2 } from '../../src/services/api';
+import { getStudentCount, changePassword, updateQRToken, clearQRToken, updateQRKey1, updateQRKey2, clearQRKey1, clearQRKey2, getAttendancePreview, saveAttendance, getScannedCount } from '../../src/services/api';
 
 export default function TeacherProfileScreen() {
   const { user, logout } = useAuthStore();
   const { colors } = useThemeStore();
   const { 
     qrPhase, scannedCount, 
-    setQrPhase, incrementScannedCount, resetFlow 
+    setQrPhase, incrementScannedCount, resetFlow, setScannedCount 
   } = useAttendanceStore();
+  const [lastScannedCount, setLastScannedCount] = useState(0);
   const [isQRModalVisible, setIsQRModalVisible] = useState(false);
   const [isConfirmationVisible, setIsConfirmationVisible] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [currentToken, setCurrentToken] = useState('');
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [studentCount, setStudentCount] = useState(0);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [previewData, setPreviewData] = useState({ presentCount: 0, absentCount: 5 });
 
   // Password state
   const [isPasswordModalVisible, setIsPasswordModalVisible] = useState(false);
@@ -34,10 +37,12 @@ export default function TeacherProfileScreen() {
   const key1ClearTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const key2ClearTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const scanPollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
+      if (scanPollIntervalRef.current) clearInterval(scanPollIntervalRef.current);
       if (key2UpdateTimeout.current) clearTimeout(key2UpdateTimeout.current);
       if (key1ClearTimeout.current) clearTimeout(key1ClearTimeout.current);
       if (key2ClearTimeout.current) clearTimeout(key2ClearTimeout.current);
@@ -61,15 +66,7 @@ export default function TeacherProfileScreen() {
     fetchStudentCount();
   }, []);
 
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>;
-    if (isQRModalVisible && scannedCount < 3) {
-      timer = setTimeout(() => {
-        incrementScannedCount();
-      }, 3000);
-    }
-    return () => clearTimeout(timer);
-  }, [isQRModalVisible, scannedCount, incrementScannedCount]);
+
 
   useEffect(() => {
     if (isQRModalVisible) {
@@ -78,6 +75,12 @@ export default function TeacherProfileScreen() {
       const initialToken = generateAttendanceToken(subject_id);
       setCurrentToken(initialToken);
       
+      const today = new Date();
+      const dateStr = 
+        String(today.getDate()).padStart(2,"0") + "-" +
+        String(today.getMonth()+1).padStart(2,"0") + "-" +
+        today.getFullYear();
+
       console.log("Key 1 updated:", initialToken);
       updateQRKey1(initialToken).catch(err => console.error('Failed to update Key 1:', err));
 
@@ -109,6 +112,20 @@ export default function TeacherProfileScreen() {
           return prev - 1;
         });
       }, 1000);
+
+      // Start real-time scan polling
+      const pollCount = async () => {
+        try {
+          const result = await getScannedCount(subject_id, dateStr);
+          setScannedCount(result.count);
+          setLastScannedCount(result.count);
+        } catch (error) {
+          console.error('Failed to poll scan count:', error);
+        }
+      };
+
+      pollCount(); // Fetch immediately
+      scanPollIntervalRef.current = setInterval(pollCount, 5000);
     }
 
     return () => {
@@ -116,18 +133,57 @@ export default function TeacherProfileScreen() {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
+      if (scanPollIntervalRef.current) {
+        clearInterval(scanPollIntervalRef.current);
+        scanPollIntervalRef.current = null;
+      }
     };
   }, [isQRModalVisible]);
 
 
 
-  const handleSaveAttendance = () => {
-    setIsConfirmationVisible(false);
-    resetFlow();
-    setShowToast(true);
-    setTimeout(() => {
-      setShowToast(false);
-    }, 2000);
+  const handleShowPreview = async () => {
+    try {
+      const today = new Date();
+      const date = 
+        String(today.getDate()).padStart(2,"0") + "-" +
+        String(today.getMonth()+1).padStart(2,"0") + "-" +
+        today.getFullYear();
+      
+      const data = await getAttendancePreview(user?.subject_id || '', date);
+      setPreviewData(data);
+      setIsConfirmationVisible(true);
+    } catch (error) {
+      console.error('Failed to fetch preview:', error);
+      Alert.alert('Error', 'Failed to fetch attendance preview.');
+    } finally {
+      setIsPreviewLoading(false);
+    }
+  };
+
+  const handleSaveAttendance = async () => {
+    try {
+      setIsConfirmationVisible(false);
+      const today = new Date();
+      const date = 
+        String(today.getDate()).padStart(2,"0") + "-" +
+        String(today.getMonth()+1).padStart(2,"0") + "-" +
+        today.getFullYear();
+
+      await saveAttendance(user?.subject_id || '', date);
+      
+      // Clear QR keys immediately
+      clearQRKey1().catch(() => {});
+      clearQRKey2().catch(() => {});
+      
+      resetFlow();
+      setShowToast(true);
+      setTimeout(() => {
+        setShowToast(false);
+      }, 2000);
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to save attendance.');
+    }
   };
 
   const handleCloseQR = () => {
@@ -240,15 +296,22 @@ export default function TeacherProfileScreen() {
           {!qrPhase && (
             <View style={{ width: '100%', alignItems: 'center' }}>
               <Text style={{ textAlign: 'center', color: colors.subtext, marginBottom: 15, fontSize: 14, fontWeight: '500' }}>
-                {scannedCount} students have scanned
+                {lastScannedCount} students have scanned
               </Text>
 
               <TouchableOpacity 
                 style={[styles.primaryButton, { backgroundColor: colors.badgeGreen, shadowColor: colors.badgeGreen, width: '100%' }]}
-                onPress={() => setIsConfirmationVisible(true)}
+                onPress={handleShowPreview}
+                disabled={isPreviewLoading}
               >
-                <MaterialIcons name="check-circle" size={24} color="#FFFFFF" style={styles.btnIcon} />
-                <Text style={styles.primaryButtonText}>Save Attendance</Text>
+                {isPreviewLoading ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <>
+                    <MaterialIcons name="check-circle" size={24} color="#FFFFFF" style={styles.btnIcon} />
+                    <Text style={styles.primaryButtonText}>Save Attendance</Text>
+                  </>
+                )}
               </TouchableOpacity>
             </View>
           )}
@@ -309,7 +372,12 @@ export default function TeacherProfileScreen() {
               </Text>
             </View>
             
-            <Text style={[styles.modalSubText, { color: colors.subtext }]}>{scannedCount} students have scanned</Text>
+            <Text style={[
+              styles.modalSubText, 
+              { color: scannedCount > 0 ? colors.badgeGreen : colors.subtext }
+            ]}>
+              {scannedCount === 0 ? "Waiting for students to scan..." : `${scannedCount} student(s) have scanned`}
+            </Text>
             
             <TouchableOpacity 
               style={[styles.closeButton, { backgroundColor: colors.primary }]} 
@@ -331,8 +399,12 @@ export default function TeacherProfileScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.confirmModalContent, { backgroundColor: colors.card }]}>
-            <Text style={[styles.confirmModalTitle, { color: colors.text }]}>Confirm Attendance</Text>
-            <Text style={[styles.confirmModalText, { color: colors.subtext }]}>{scannedCount} students will be marked present</Text>
+            <Text style={[styles.confirmModalTitle, { color: colors.text }]}>Save Attendance</Text>
+            <View style={{ marginBottom: 20, alignItems: 'center' }}>
+              <Text style={{ fontSize: 16, color: colors.badgeRed, fontWeight: 'bold' }}>
+                {previewData.absentCount} students will be marked Absent
+              </Text>
+            </View>
             
             <View style={styles.confirmButtonRow}>
               <TouchableOpacity 

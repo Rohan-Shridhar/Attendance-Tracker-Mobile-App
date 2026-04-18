@@ -4,7 +4,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useThemeStore } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
-import { getSubjectDetail } from '../../src/services/api';
+import { getStudentSubjectDetail } from '../../src/services/api';
 
 export default function SubjectDetailScreen() {
   const { name, percentage, subjectId } = useLocalSearchParams<{ name: string; percentage: string; subjectId: string; }>();
@@ -21,7 +21,7 @@ export default function SubjectDetailScreen() {
       try {
         setIsLoading(true);
         setError(null);
-        const data = await getSubjectDetail(user.usn, subjectId);
+        const data = await getStudentSubjectDetail(user.usn, subjectId);
         setRecords(data);
       } catch (err: any) {
         setError(err.message || 'Failed to fetch attendance history');
@@ -67,7 +67,14 @@ export default function SubjectDetailScreen() {
           data={records}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
-          ListEmptyComponent={<Text style={{ textAlign: 'center', color: colors.subtext, marginTop: 20 }}>No records found.</Text>}
+          ListEmptyComponent={
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 100 }}>
+              <MaterialIcons name="event-busy" size={60} color={colors.subtext + '44'} />
+              <Text style={{ textAlign: 'center', color: colors.subtext, marginTop: 15, fontSize: 16 }}>
+                No attendance records yet
+              </Text>
+            </View>
+          }
           renderItem={({ item }) => (
             <View style={[styles.recordCard, { backgroundColor: colors.card }]}>
               <View style={styles.dateContainer}>
@@ -75,13 +82,13 @@ export default function SubjectDetailScreen() {
                 <Text style={[styles.dateText, { color: colors.text }]}>{item.date}</Text>
               </View>
               <View style={styles.statusContainer}>
-                {item.isPresent ? (
+                {item.status === 'Present' ? (
                   <MaterialIcons name="check-circle" size={24} color={colors.badgeGreen} />
                 ) : (
                   <MaterialIcons name="cancel" size={24} color={colors.badgeRed} />
                 )}
-                <Text style={[styles.statusText, { color: item.isPresent ? colors.badgeGreen : colors.badgeRed }]}>
-                  {item.isPresent ? 'Present' : 'Absent'}
+                <Text style={[styles.statusText, { color: item.status === 'Present' ? colors.badgeGreen : colors.badgeRed }]}>
+                  {item.status}
                 </Text>
               </View>
             </View>

@@ -2,9 +2,11 @@ import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { TouchableOpacity } from 'react-native';
 import { useThemeStore } from '../../store/themeStore';
+import { useNotificationStore } from '../../store/notificationStore';
 
 export default function StudentLayout() {
   const { colors, isDarkMode, toggleTheme } = useThemeStore();
+  const unreadCount = useNotificationStore((state) => state.unreadCount);
 
   return (
     <Tabs 
@@ -46,6 +48,7 @@ export default function StudentLayout() {
         options={{
           title: 'Inbox',
           tabBarIcon: ({ color }) => <Ionicons name="notifications" size={24} color={color} />,
+          tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
         }}
       />
     </Tabs>
