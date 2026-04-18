@@ -21,12 +21,13 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useThemeStore } from '../../store/themeStore';
 import { useStudentsStore } from '../../store/studentsStore';
 import { useAuthStore } from '../../store/authStore';
-import { getClassAttendance } from '../../src/services/api';
+import { getClassAttendance, sendLowAttendanceAlerts } from '../../src/services/api';
 
 export default function TeacherStudentsScreen() {
   const { user } = useAuthStore();
   const [students, setStudents] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSendingAlerts, setIsSendingAlerts] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const { sortType, setSortType } = useStudentsStore();
@@ -70,13 +71,32 @@ export default function TeacherStudentsScreen() {
       }
     });
 
-  const handleSendAlert = () => {
-    const lowAttendanceCount = students.filter(s => s.percentage < 75).length;
-    Alert.alert(
-      'Alerts Sent',
-      `Alerts sent to ${lowAttendanceCount} students below 75% attendance.`,
-      [{ text: 'OK' }]
-    );
+  const handleSendAlert = async () => {
+    if (!user?.subject_id) return;
+
+    try {
+      setIsSendingAlerts(true);
+      const result = await sendLowAttendanceAlerts(user.subject_id);
+      
+      let message = "";
+      if (result.alertsSent > 0) {
+        message = `Alerts sent to ${result.alertsSent} students below 75% attendance.`;
+        if (result.alreadySentToday > 0) {
+          message += ` (${result.alreadySentToday} students were already notified today)`;
+        }
+      } else if (result.alreadySentToday > 0) {
+        message = "Alerts already sent to all eligible students today.";
+      } else {
+        message = "No students are currently below 75% attendance.";
+      }
+
+      Alert.alert('Alerts Status', message, [{ text: 'OK' }]);
+    } catch (err: any) {
+      console.error('Failed to send alerts:', err);
+      Alert.alert('Error', err.message || 'Failed to send alerts. Please try again.');
+    } finally {
+      setIsSendingAlerts(false);
+    }
   };
 
   const getBadgeColor = (percentage: number) => {
@@ -129,9 +149,23 @@ export default function TeacherStudentsScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Alert Banner Button */}
-      <TouchableOpacity style={[styles.alertBanner, { backgroundColor: colors.badgeRed, shadowColor: colors.badgeRed }]} onPress={handleSendAlert}>
-        <MaterialIcons name="warning" size={24} color="#FFFFFF" style={styles.alertIcon} />
-        <Text style={styles.alertText}>Send Alert to All Below 75%</Text>
+      <TouchableOpacity 
+        style={[
+          styles.alertBanner, 
+          { backgroundColor: colors.badgeRed, shadowColor: colors.badgeRed },
+          isSendingAlerts && { opacity: 0.8 }
+        ]} 
+        onPress={handleSendAlert}
+        disabled={isSendingAlerts}
+      >
+        {isSendingAlerts ? (
+          <ActivityIndicator color="#FFFFFF" size="small" style={styles.alertIcon} />
+        ) : (
+          <MaterialIcons name="warning" size={24} color="#FFFFFF" style={styles.alertIcon} />
+        )}
+        <Text style={styles.alertText}>
+          {isSendingAlerts ? 'Sending Alerts...' : 'Send Alert to All Below 75%'}
+        </Text>
       </TouchableOpacity>
 
       {/* Search Bar */}

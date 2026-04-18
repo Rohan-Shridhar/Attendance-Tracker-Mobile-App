@@ -163,6 +163,7 @@ export default function TeacherProfileScreen() {
 
   const handleSaveAttendance = async () => {
     try {
+      setIsConfirmationVisible(false);
       const today = new Date();
       const date = 
         String(today.getDate()).padStart(2,"0") + "-" +
@@ -400,11 +401,8 @@ export default function TeacherProfileScreen() {
           <View style={[styles.confirmModalContent, { backgroundColor: colors.card }]}>
             <Text style={[styles.confirmModalTitle, { color: colors.text }]}>Save Attendance</Text>
             <View style={{ marginBottom: 20, alignItems: 'center' }}>
-              <Text style={{ fontSize: 16, color: colors.badgeGreen, fontWeight: 'bold', marginBottom: 5 }}>
-                ✓ {previewData.presentCount} students will be marked Present
-              </Text>
               <Text style={{ fontSize: 16, color: colors.badgeRed, fontWeight: 'bold' }}>
-                ✗ {previewData.absentCount} students will be marked Absent
+                {previewData.absentCount} students will be marked Absent
               </Text>
             </View>
             

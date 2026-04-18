@@ -1,6 +1,8 @@
 const { getAttendanceModel } = require('../db/models/Attendance');
 const Student = require('../db/models/Student');
 const QRKey = require('../db/models/QRKey');
+const Notification = require('../db/models/Notification');
+const Teacher = require('../db/models/Teacher');
 
 /**
  * @desc    Get student attendance percentages for all subjects
@@ -338,41 +340,90 @@ const saveAttendance = async (req, res) => {
     const AttendanceModel = getAttendanceModel(collectionName);
     const doc = await AttendanceModel.findOne({ date: date });
 
+    let finalAbsentCount = 0;
+    let finalPresentCount = 0;
+    const absentUSNs = [];
+
     if (doc) {
       const setObj = {};
-      let absentCount = 0;
       allUSNs.forEach(usn => {
         if (doc.get(usn) !== "Present") {
           setObj[usn] = "Absent";
-          absentCount++;
+          finalAbsentCount++;
+          absentUSNs.push(usn);
+        } else {
+          finalPresentCount++;
         }
       });
 
       await AttendanceModel.updateOne({ date: date }, { $set: setObj });
-      
-      const presentCount = 5 - absentCount;
-      console.log(`Present: ${presentCount} Absent: ${absentCount}`);
-      
-      res.status(200).json({ 
-        message: "Attendance saved", 
-        absentCount, 
-        presentCount 
-      });
+      console.log(`Attendance written to collection: ${collectionName} (Updated)`);
+      console.log(`Present: ${finalPresentCount} Absent: ${finalAbsentCount}`);
     } else {
       const newDoc = { date: date };
       allUSNs.forEach(usn => {
         newDoc[usn] = "Absent";
+        absentUSNs.push(usn);
       });
+      finalAbsentCount = 5;
+      finalPresentCount = 0;
 
       await AttendanceModel.create(newDoc);
+      console.log(`Attendance written to collection: ${collectionName} (Created)`);
       console.log(`Present: 0 Absent: 5`);
-      
-      res.status(201).json({ 
-        message: "Attendance saved", 
-        absentCount: 5, 
-        presentCount: 0 
-      });
     }
+
+    // CREATE NOTIFICATIONS
+    let notificationsSent = 0;
+    if (absentUSNs.length > 0) {
+      // Step 2: Get subject name from teachers collection
+      const teacher = await Teacher.findOne({ subject_id });
+      const subjectName = teacher ? teacher.subject : "Subject";
+
+      // Step 1: Fetch all documents for percentage calculation
+      const allRecords = await AttendanceModel.find({});
+
+      for (const usn of absentUSNs) {
+        let totalClasses = 0;
+        let presentCount = 0;
+
+        allRecords.forEach(r => {
+          const status = r.get(usn);
+          if (status !== undefined && status !== null) {
+            totalClasses++;
+            if (status === "Present") {
+              presentCount++;
+            }
+          }
+        });
+
+        const percentage = totalClasses === 0 ? 0 : Math.round((presentCount / totalClasses) * 100);
+
+        // Step 3: Create notification document
+        await Notification.create({
+          usn: usn,
+          type: "absent_alert",
+          subject: subjectName,
+          subject_id: subject_id,
+          date: date,
+          attendance_percentage: percentage,
+          message: `You were marked Absent for ${subjectName} on ${date}. Current attendance: ${percentage}%`,
+          is_read: false,
+          created_at: new Date()
+        });
+
+        console.log(`Notification created for ${usn} absent in ${subjectName} on ${date}`);
+        notificationsSent++;
+      }
+    }
+
+    res.status(200).json({ 
+      message: "Attendance saved", 
+      absentCount: finalAbsentCount, 
+      presentCount: finalPresentCount,
+      notificationsSent
+    });
+
   } catch (error) {
     console.error("saveAttendance error:", error);
     res.status(500).json({ message: error.message });

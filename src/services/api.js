@@ -255,3 +255,61 @@ export const getScannedCount = async (subject_id, date) => {
   return handleResponse(response);
 };
 
+/**
+ * Get all notifications for a student
+ * @param {string} usn 
+ */
+export const getNotifications = async (usn) => {
+  const response = await fetch(`${BASE_URL}/notifications/${usn}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+  return handleResponse(response);
+};
+
+/**
+ * Mark a notification as read
+ * @param {string} id Notification ID
+ */
+export const markAsRead = async (id) => {
+  const response = await fetch(`${BASE_URL}/notifications/mark-read/${id}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+  return handleResponse(response);
+};
+
+/**
+ * Mark all notifications for a student as read
+ * @param {string} usn 
+ */
+export const markAllRead = async (usn) => {
+  const response = await fetch(`${BASE_URL}/notifications/mark-all-read/${usn}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+  return handleResponse(response);
+};
+
+/**
+ * Send low attendance alerts to students below threshold
+ * @param {string} subject_id 
+ */
+export const sendLowAttendanceAlerts = async (subject_id) => {
+  const response = await fetch(`${BASE_URL}/notifications/send-alerts`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ subject_id }),
+  });
+  return handleResponse(response);
+};
+
+
