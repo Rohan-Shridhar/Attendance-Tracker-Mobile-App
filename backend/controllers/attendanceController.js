@@ -180,9 +180,11 @@ const markAttendance = async (req, res) => {
     const collectionName = subjectId.slice(-3).toLowerCase();
     
     // format is HHMMSS + YYYYMMDD
-    const datePart = timestampBlock.slice(6);
-    // New format: DD-MM-YYYY
-    const date = `${datePart.slice(6)}-${datePart.slice(4, 6)}-${datePart.slice(0, 4)}`;
+    const datePart = timestampBlock.slice(6); // "20260418"
+    const day = datePart.slice(6);           // "18"
+    const month = datePart.slice(4, 6);       // "04"
+    const year = datePart.slice(0, 4);        // "2026"
+    const date = `${day}-${month}-${year}`;   // "18-04-2026"
 
     console.log(`Parsed: date=${date} subject=${collectionName} usn=${usn}`);
 
@@ -285,12 +287,8 @@ const getStudentSubjectDetail = async (req, res) => {
  * @access  Public (for now)
  */
 const getAttendancePreview = async (req, res) => {
-  const { subject_id, date: inputDate } = req.params;
+  const { subject_id, date } = req.params;
   const collectionName = subject_id.slice(-3).toLowerCase();
-  
-  // Convert YYYY-MM-DD to DD-MM-YYYY
-  const dateParts = inputDate.split('-');
-  const date = `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`;
 
   const allUSNs = [
     "1WN24CS001", "1WN24CS002", "1WN24CS003", "1WN24CS004", "1WN24CS005"
@@ -327,12 +325,8 @@ const getAttendancePreview = async (req, res) => {
  * @access  Public (for now)
  */
 const saveAttendance = async (req, res) => {
-  const { subject_id, date: inputDate } = req.body;
+  const { subject_id, date } = req.body;
   const collectionName = subject_id.slice(-3).toLowerCase();
-  
-  // Convert YYYY-MM-DD to DD-MM-YYYY
-  const dateParts = inputDate.split('-');
-  const date = `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`;
 
   const allUSNs = [
     "1WN24CS001", "1WN24CS002", "1WN24CS003", "1WN24CS004", "1WN24CS005"
@@ -391,12 +385,8 @@ const saveAttendance = async (req, res) => {
  * @access  Public (for now)
  */
 const getScannedCount = async (req, res) => {
-  const { subject_id, date: inputDate } = req.params;
+  const { subject_id, date } = req.params;
   const collectionName = subject_id.slice(-3).toLowerCase();
-  
-  // Convert YYYY-MM-DD to DD-MM-YYYY
-  const dateParts = inputDate.split('-');
-  const date = `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`;
 
   const allUSNs = [
     "1WN24CS001", "1WN24CS002", "1WN24CS003", "1WN24CS004", "1WN24CS005"

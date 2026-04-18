@@ -76,9 +76,10 @@ export default function TeacherProfileScreen() {
       setCurrentToken(initialToken);
       
       const today = new Date();
-      const dateStr = today.getFullYear() + "-" + 
+      const dateStr = 
+        String(today.getDate()).padStart(2,"0") + "-" +
         String(today.getMonth()+1).padStart(2,"0") + "-" +
-        String(today.getDate()).padStart(2,"0");
+        today.getFullYear();
 
       console.log("Key 1 updated:", initialToken);
       updateQRKey1(initialToken).catch(err => console.error('Failed to update Key 1:', err));
@@ -143,11 +144,11 @@ export default function TeacherProfileScreen() {
 
   const handleShowPreview = async () => {
     try {
-      setIsPreviewLoading(true);
       const today = new Date();
-      const date = today.getFullYear() + "-" + 
+      const date = 
+        String(today.getDate()).padStart(2,"0") + "-" +
         String(today.getMonth()+1).padStart(2,"0") + "-" +
-        String(today.getDate()).padStart(2,"0");
+        today.getFullYear();
       
       const data = await getAttendancePreview(user?.subject_id || '', date);
       setPreviewData(data);
@@ -162,12 +163,11 @@ export default function TeacherProfileScreen() {
 
   const handleSaveAttendance = async () => {
     try {
-      setIsConfirmationVisible(false);
-      
       const today = new Date();
-      const date = today.getFullYear() + "-" + 
+      const date = 
+        String(today.getDate()).padStart(2,"0") + "-" +
         String(today.getMonth()+1).padStart(2,"0") + "-" +
-        String(today.getDate()).padStart(2,"0");
+        today.getFullYear();
 
       await saveAttendance(user?.subject_id || '', date);
       
